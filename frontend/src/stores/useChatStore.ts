@@ -35,7 +35,7 @@ export const useChatStore = create<ChatState>()(
           console.error("Lỗi xảy ra khi fetchConversations:", error);
           set({ convoLoading: false });
         }
-      },
+      },// }, Xử lý tin nhắn cũ - Phân trang
       fetchMessages: async (conversationId) => {
         const { activeConversationId, messages } = get();
         const { user } = useAuthStore.getState();

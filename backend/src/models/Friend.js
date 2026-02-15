@@ -27,7 +27,7 @@ friendSchema.pre("save", function (next) {
     this.userB = new mongoose.Types.ObjectId(a);
   }
 
-  next();
+  
 });
 
 friendSchema.index({ userA: 1, userB: 1 }, { unique: true });

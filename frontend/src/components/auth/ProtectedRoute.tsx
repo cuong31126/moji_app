@@ -3,44 +3,53 @@ import { useEffect, useState } from "react";
 import { Navigate, Outlet } from "react-router";
 
 const ProtectedRoute = () => {
-  const { accessToken, user, loading, refresh, fetchMe } = useAuthStore();
+  // Chúng ta không lấy accessToken trực tiếp ở đây để tránh bị dùng giá trị cũ trong hàm async
+  const { refresh, fetchMe, loading } = useAuthStore();
   const [starting, setStarting] = useState(true);
 
-  const init = async () => {
-    // có thể xảy ra khi refresh trang
-    if (!accessToken) {
-      await refresh();
-    }
-
-    if (accessToken && !user) {
-      await fetchMe();
-    }
-
-    setStarting(false);
-  };
-
   useEffect(() => {
-    init();
-  }, []);
+    const init = async () => {
+      try {
+        // 1. Kiểm tra token hiện tại trong Store (giá trị mới nhất)
+        let currentToken = useAuthStore.getState().accessToken;
 
+        // 2. Nếu chưa có token, thử chạy refresh để lấy lại từ cookie
+        if (!currentToken) {
+          await refresh();
+          currentToken = useAuthStore.getState().accessToken; // Cập nhật lại biến sau khi refresh
+        }
+
+        // 3. Nếu đã có token nhưng chưa có thông tin user, hãy fetch thông tin user
+        if (currentToken && !useAuthStore.getState().user) {
+          await fetchMe();
+        }
+      } catch (error) {
+        console.error("Xác thực thất bại:", error);
+      } finally {
+        // Luôn luôn tắt trạng thái loading ban đầu dù thành công hay thất bại
+        setStarting(false);
+      }
+    };
+
+    init();
+  }, [refresh, fetchMe]);
+
+  // Đang trong quá trình kiểm tra (Starting) hoặc Store đang xử lý (Loading)
   if (starting || loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        Đang tải trang...
+      <div className="flex h-screen items-center justify-center font-medium">
+        <div className="animate-pulse">Đang xác thực phiên đăng nhập...</div>
       </div>
     );
   }
 
-  if (!accessToken) {
-    return (
-      <Navigate
-        to="/signin"
-        replace
-      />
-    );
+  // Sau khi init xong, nếu vẫn không có accessToken thì mới đá về Signin
+  if (!useAuthStore.getState().accessToken) {
+    return <Navigate to="/signin" replace />;
   }
 
-  return <Outlet></Outlet>;
+  // Nếu mọi thứ ổn, cho phép vào trang
+  return <Outlet />;
 };
 
 export default ProtectedRoute;
