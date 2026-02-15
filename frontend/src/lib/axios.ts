@@ -1,14 +1,12 @@
-import axios from 'axios';
 import { useAuthStore } from "@/stores/useAuthStore";
+import axios from "axios";
 
 const api = axios.create({
-    baseURL: import.meta.env.MODE === 'development' ? "http://localhost:5001/api" : "/api",
+    baseURL: import.meta.env.VITE_API_URL,
     withCredentials: true,
 });
 
-
-
-// gan access token vao req header 
+// gắn access token vào req header
 api.interceptors.request.use((config) => {
     const { accessToken } = useAuthStore.getState();
 
@@ -19,8 +17,6 @@ api.interceptors.request.use((config) => {
     return config;
 });
 
-
-// tự động gọi refresh api khi access token hết han j 
 // tự động gọi refresh api khi access token hết hạn
 api.interceptors.response.use(
     (res) => res,
