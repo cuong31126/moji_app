@@ -35,16 +35,16 @@ export function SigninForm({ className, ...props }: React.ComponentProps<"div">)
 
   return (
     <div
-      className={cn("flex flex-col gap-6", className)}
+      className={cn("flex w-full flex-col gap-4", className)}
       {...props}
     >
-      <Card className="overflow-hidden p-0 border-border">
-        <CardContent className="grid p-0 md:grid-cols-2">
+      <Card className="w-full overflow-hidden border border-primary/20 bg-card/95 p-0 shadow-soft dark:border-primary/30 dark:bg-card/95">
+        <CardContent className="grid p-0 md:min-h-[560px] md:grid-cols-[0.95fr_1.05fr]">
           <form
-            className="p-6 md:p-8"
+            className="p-5 sm:p-6 md:p-8"
             onSubmit={handleSubmit(onSubmit)}
           >
-            <div className="flex flex-col gap-6">
+            <div className="mx-auto flex max-w-sm flex-col gap-5">
               {/* header - logo */}
               <div className="flex flex-col items-center text-center gap-2">
                 <a
@@ -52,8 +52,9 @@ export function SigninForm({ className, ...props }: React.ComponentProps<"div">)
                   className="mx-auto block w-fit text-center"
                 >
                   <img
-                    src="/logo.svg"
+                    src="/logo23.png"
                     alt="logo"
+                    className="h-12 w-auto"
                   />
                 </a>
 
@@ -124,16 +125,16 @@ export function SigninForm({ className, ...props }: React.ComponentProps<"div">)
               </div>
             </div>
           </form>
-          <div className="bg-muted relative hidden md:block">
+          <div className="bg-muted relative hidden min-h-[560px] md:block">
             <img
               src="/placeholder.png"
               alt="Image"
-              className="absolute top-1/2 -translate-y-1/2 object-cover"
+              className="absolute inset-0 h-full w-full object-cover"
             />
           </div>
         </CardContent>
       </Card>
-      <div className=" text-xs text-balance px-6 text-center *:[a]:hover:text-primary text-muted-foreground *:[a]:underline *:[a]:underline-offetset-4">
+      <div className="px-4 text-center text-xs text-balance text-muted-foreground *:[a]:underline *:[a]:underline-offetset-4 *:[a]:hover:text-primary">
         Bằng cách tiếp tục, bạn đồng ý với <a href="#">Điều khoản dịch vụ</a> và{" "}
         <a href="#">Chính sách bảo mật</a> của chúng tôi.
       </div>

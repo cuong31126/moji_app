@@ -2,6 +2,8 @@ import type { Socket } from "socket.io-client";
 import type { Conversation, Message } from "./chat";
 import type { Friend, FriendRequest, User } from "./user";
 
+export type ConversationUpdate = Partial<Conversation> & Pick<Conversation, "_id">;
+
 export interface AuthState {
   accessToken: string | null;
   user: User | null;
@@ -61,7 +63,7 @@ export interface ChatState {
   // add message
   addMessage: (message: Message) => Promise<void>;
   // update convo
-  updateConversation: (conversation: unknown) => void;
+  updateConversation: (conversation: ConversationUpdate) => void;
   markAsSeen: () => Promise<void>;
   addConvo: (convo: Conversation) => void;
   createConversation: (
