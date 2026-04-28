@@ -25,6 +25,31 @@ const toFriendPayload = (user) => {
   };
 };
 
+const makeFriends = async (firstUserId, secondUserId) => {
+  const { userA, userB } = getFriendPair(firstUserId, secondUserId);
+  const userAObjectId = new mongoose.Types.ObjectId(userA);
+  const userBObjectId = new mongoose.Types.ObjectId(userB);
+
+  try {
+    await Friend.updateOne(
+      { userA: userAObjectId, userB: userBObjectId },
+      { $setOnInsert: { userA: userAObjectId, userB: userBObjectId } },
+      { upsert: true }
+    );
+  } catch (error) {
+    if (error?.code !== 11000) {
+      throw error;
+    }
+  }
+
+  await FriendRequest.deleteMany({
+    $or: [
+      { from: firstUserId, to: secondUserId },
+      { from: secondUserId, to: firstUserId },
+    ],
+  });
+};
+
 export const sendFriendRequest = async (req, res) => {
   try {
     const { to, message } = req.body;
@@ -70,6 +95,23 @@ export const sendFriendRequest = async (req, res) => {
     }
 
     if (existingRequest) {
+      const isIncomingRequest =
+        existingRequest.from.toString() === to.toString() &&
+        existingRequest.to.toString() === from.toString();
+
+      if (isIncomingRequest) {
+        await makeFriends(from, to);
+
+        const newFriend = await User.findById(to)
+          .select("_id username displayName avatarUrl")
+          .lean();
+
+        return res.status(200).json({
+          message: "Chấp nhận lời mời kết bạn thành công",
+          newFriend: toFriendPayload(newFriend),
+        });
+      }
+
       return res.status(400).json({ message: "Đã có lời mời kết bạn đang chờ" });
     }
 
@@ -109,20 +151,7 @@ export const acceptFriendRequest = async (req, res) => {
         .json({ message: "Bạn không có quyền chấp nhận lời mời này" });
     }
 
-    const { userA, userB } = getFriendPair(request.from, request.to);
-
-    await Friend.updateOne(
-      { userA, userB },
-      { $setOnInsert: { userA, userB } },
-      { upsert: true }
-    );
-
-    await FriendRequest.deleteMany({
-      $or: [
-        { _id: requestId },
-        { from: request.to, to: request.from },
-      ],
-    });
+    await makeFriends(request.from, request.to);
 
     const from = await User.findById(request.from)
       .select("_id username displayName avatarUrl")

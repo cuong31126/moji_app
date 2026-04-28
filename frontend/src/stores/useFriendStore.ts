@@ -2,7 +2,7 @@ import { friendService } from "@/services/friendService";
 import type { FriendState } from "@/types/store";
 import { create } from "zustand";
 
-export const useFriendStore = create<FriendState>((set) => ({
+export const useFriendStore = create<FriendState>((set, get) => ({
   friends: [],
   loading: false,
   receivedList: [],
@@ -34,6 +34,14 @@ export const useFriendStore = create<FriendState>((set) => ({
         console.error("Error while refreshing friend requests", error);
       }
 
+      if (result.newFriend) {
+        set((state) => ({
+          friends: state.friends.some((friend) => friend._id === result.newFriend._id)
+            ? state.friends
+            : [...state.friends, result.newFriend],
+        }));
+      }
+
       return result.message;
     } catch (error) {
       console.error("Error while sending friend request", error);
@@ -63,15 +71,35 @@ export const useFriendStore = create<FriendState>((set) => ({
   acceptRequest: async (requestId) => {
     try {
       set({ loading: true });
+      const acceptedRequest = get().receivedList.find(
+        (request) => request._id === requestId
+      );
       const newFriend = await friendService.acceptRequest(requestId);
+      const acceptedFriend = newFriend || acceptedRequest?.from;
 
       set((state) => ({
         receivedList: state.receivedList.filter((request) => request._id !== requestId),
         friends:
-          newFriend && !state.friends.some((friend) => friend._id === newFriend._id)
-            ? [...state.friends, newFriend]
+          acceptedFriend &&
+          !state.friends.some((friend) => friend._id === acceptedFriend._id)
+            ? [...state.friends, acceptedFriend]
             : state.friends,
       }));
+
+      try {
+        const [requests, friends] = await Promise.all([
+          friendService.getAllFriendRequest(),
+          friendService.getFriendList(),
+        ]);
+
+        if (requests) {
+          set({ receivedList: requests.received, sentList: requests.sent });
+        }
+
+        set({ friends });
+      } catch (error) {
+        console.error("Error while refreshing friends after accepting request", error);
+      }
     } catch (error) {
       console.error("Error while accepting friend request", error);
       throw error;
