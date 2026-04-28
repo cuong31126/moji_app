@@ -9,7 +9,7 @@ import {
 import { UserPlus } from "lucide-react";
 import type { User } from "@/types/user";
 import { useFriendStore } from "@/stores/useFriendStore";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import SearchForm from "@/components/AddFriendModal/SearchForm";
 import SendFriendRequestForm from "@/components/AddFriendModal/SendFriendRequestForm";
@@ -19,7 +19,11 @@ export interface IFormValues {
   message: string;
 }
 
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "Lỗi xảy ra. Hãy thử lại";
+
 const AddFriendModal = () => {
+  const [open, setOpen] = useState(false);
   const [isFound, setIsFound] = useState<boolean | null>(null);
   const [searchUser, setSearchUser] = useState<User>();
   const [searchedUsername, setSearchedUsername] = useState("");
@@ -28,20 +32,28 @@ const AddFriendModal = () => {
   const {
     register,
     handleSubmit,
-    watch,
+    control,
     reset,
     formState: { errors },
   } = useForm<IFormValues>({
     defaultValues: { username: "", message: "" },
   });
 
-  const usernameValue = watch("username");
+  const usernameValue = useWatch({ control, name: "username" });
+
+  const handleCancel = () => {
+    reset();
+    setSearchUser(undefined);
+    setSearchedUsername("");
+    setIsFound(null);
+  };
 
   const handleSearch = handleSubmit(async (data) => {
     const username = data.username.trim();
     if (!username) return;
 
     setIsFound(null);
+    setSearchUser(undefined);
     setSearchedUsername(username);
 
     try {
@@ -55,6 +67,7 @@ const AddFriendModal = () => {
     } catch (error) {
       console.error(error);
       setIsFound(false);
+      toast.error(getErrorMessage(error));
     }
   });
 
@@ -66,19 +79,21 @@ const AddFriendModal = () => {
       toast.success(message);
 
       handleCancel();
+      setOpen(false);
     } catch (error) {
-      console.error("Lỗi xảy ra khi gửi request từ form", error);
+      console.error("Error while sending friend request from form", error);
+      toast.error(getErrorMessage(error));
     }
   });
 
-  const handleCancel = () => {
-    reset();
-    setSearchedUsername("");
-    setIsFound(null);
-  };
-
   return (
-    <Dialog>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) handleCancel();
+      }}
+    >
       <DialogTrigger asChild>
         <div className="flex justify-center items-center size-5 rounded-full hover:bg-sidebar-accent cursor-pointer z-10">
           <UserPlus className="size-4" />
@@ -92,30 +107,26 @@ const AddFriendModal = () => {
         </DialogHeader>
 
         {!isFound && (
-          <>
-            <SearchForm
-              register={register}
-              errors={errors}
-              usernameValue={usernameValue}
-              loading={loading}
-              isFound={isFound}
-              searchedUsername={searchedUsername}
-              onSubmit={handleSearch}
-              onCancel={handleCancel}
-            />
-          </>
+          <SearchForm
+            register={register}
+            errors={errors}
+            usernameValue={usernameValue}
+            loading={loading}
+            isFound={isFound}
+            searchedUsername={searchedUsername}
+            onSubmit={handleSearch}
+            onCancel={handleCancel}
+          />
         )}
 
         {isFound && (
-          <>
-            <SendFriendRequestForm
-              register={register}
-              loading={loading}
-              searchedUsername={searchedUsername}
-              onSubmit={handleSend}
-              onBack={() => setIsFound(null)}
-            />
-          </>
+          <SendFriendRequestForm
+            register={register}
+            loading={loading}
+            searchedUsername={searchedUsername}
+            onSubmit={handleSend}
+            onBack={() => setIsFound(null)}
+          />
         )}
       </DialogContent>
     </Dialog>

@@ -3,16 +3,11 @@ import FriendRequestItem from "./FriendRequestItem";
 import { Button } from "../ui/button";
 import { toast } from "sonner";
 
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "Lỗi xảy ra. Hãy thử lại";
+
 const ReceivedRequests = () => {
   const { acceptRequest, declineRequest, loading, receivedList } = useFriendStore();
-
-  if (!receivedList || receivedList.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Bạn chưa có lời mời kết bạn nào.
-      </p>
-    );
-  }
 
   const handleAccept = async (requestId: string) => {
     try {
@@ -20,6 +15,7 @@ const ReceivedRequests = () => {
       toast.success("Đã đồng ý kết bạn thành công");
     } catch (error) {
       console.error(error);
+      toast.error(getErrorMessage(error));
     }
   };
 
@@ -29,8 +25,17 @@ const ReceivedRequests = () => {
       toast.info("Đã từ chối kết bạn");
     } catch (error) {
       console.error(error);
+      toast.error(getErrorMessage(error));
     }
   };
+
+  if (!receivedList || receivedList.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Bạn chưa có lời mời kết bạn nào.
+      </p>
+    );
+  }
 
   return (
     <div className="space-y-3 mt-4">

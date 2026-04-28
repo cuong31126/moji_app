@@ -1,14 +1,37 @@
 import api from "@/lib/axios";
+import axios from "axios";
+
+const getApiErrorMessage = (error: unknown, fallback: string) => {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data as { message?: string } | undefined;
+    return data?.message || fallback;
+  }
+
+  return error instanceof Error ? error.message : fallback;
+};
+
+const throwFriendError = (error: unknown, fallback: string): never => {
+  throw new Error(getApiErrorMessage(error, fallback));
+};
 
 export const friendService = {
   async searchByUsername(username: string) {
-    const res = await api.get(`/users/search?username=${username}`);
-    return res.data.user;
+    try {
+      const query = encodeURIComponent(username.trim());
+      const res = await api.get(`/users/search?username=${query}`);
+      return res.data.user;
+    } catch (error) {
+      throwFriendError(error, "Không tìm được người dùng");
+    }
   },
 
   async sendFriendRequest(to: string, message?: string) {
-    const res = await api.post("/friends/requests", { to, message });
-    return res.data.message;
+    try {
+      const res = await api.post("/friends/requests", { to, message });
+      return res.data;
+    } catch (error) {
+      throwFriendError(error, "Không gửi được lời mời kết bạn");
+    }
   },
 
   async getAllFriendRequest() {
@@ -17,7 +40,7 @@ export const friendService = {
       const { sent, received } = res.data;
       return { sent, received };
     } catch (error) {
-      console.error("Lỗi khi gửi getAllFriendRequest", error);
+      throwFriendError(error, "Không tải được danh sách lời mời kết bạn");
     }
   },
 
@@ -26,7 +49,7 @@ export const friendService = {
       const res = await api.post(`/friends/requests/${requestId}/accept`);
       return res.data.newFriend;
     } catch (error) {
-      console.error("Lỗi khi gửi acceptRequest", error);
+      throwFriendError(error, "Không chấp nhận được lời mời kết bạn");
     }
   },
 
@@ -34,7 +57,7 @@ export const friendService = {
     try {
       await api.post(`/friends/requests/${requestId}/decline`);
     } catch (error) {
-      console.error("Lỗi khi gửi declineRequest", error);
+      throwFriendError(error, "Không từ chối được lời mời kết bạn");
     }
   },
 

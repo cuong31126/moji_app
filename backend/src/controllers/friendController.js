@@ -1,6 +1,29 @@
 import Friend from "../models/Friend.js";
 import User from "../models/User.js";
 import FriendRequest from "../models/FriendRequest.js";
+import mongoose from "mongoose";
+
+const getFriendPair = (firstUserId, secondUserId) => {
+  let userA = firstUserId.toString();
+  let userB = secondUserId.toString();
+
+  if (userA > userB) {
+    [userA, userB] = [userB, userA];
+  }
+
+  return { userA, userB };
+};
+
+const toFriendPayload = (user) => {
+  if (!user) return null;
+
+  return {
+    _id: user._id,
+    username: user.username,
+    displayName: user.displayName,
+    avatarUrl: user.avatarUrl,
+  };
+};
 
 export const sendFriendRequest = async (req, res) => {
   try {
@@ -12,6 +35,10 @@ export const sendFriendRequest = async (req, res) => {
       return res
         .status(400)
         .json({ message: "Cần cung cấp người nhận lời mời kết bạn" });
+    }
+
+    if (!mongoose.isValidObjectId(to)) {
+      return res.status(400).json({ message: "Người nhận không hợp lệ" });
     }
 
     if (from.toString() === to.toString()) {
@@ -26,12 +53,7 @@ export const sendFriendRequest = async (req, res) => {
       return res.status(404).json({ message: "Người dùng không tồn tại" });
     }
 
-    let userA = from.toString();
-    let userB = to.toString();
-
-    if (userA > userB) {
-      [userA, userB] = [userB, userA];
-    }
+    const { userA, userB } = getFriendPair(from, to);
 
     const [alreadyFriends, existingRequest] = await Promise.all([
       Friend.findOne({ userA, userB }),
@@ -71,6 +93,10 @@ export const acceptFriendRequest = async (req, res) => {
     const { requestId } = req.params;
     const userId = req.user._id;
 
+    if (!mongoose.isValidObjectId(requestId)) {
+      return res.status(400).json({ message: "Lời mời kết bạn không hợp lệ" });
+    }
+
     const request = await FriendRequest.findById(requestId);
 
     if (!request) {
@@ -83,24 +109,28 @@ export const acceptFriendRequest = async (req, res) => {
         .json({ message: "Bạn không có quyền chấp nhận lời mời này" });
     }
 
-    await Friend.create({
-      userA: request.from,
-      userB: request.to,
+    const { userA, userB } = getFriendPair(request.from, request.to);
+
+    await Friend.updateOne(
+      { userA, userB },
+      { $setOnInsert: { userA, userB } },
+      { upsert: true }
+    );
+
+    await FriendRequest.deleteMany({
+      $or: [
+        { _id: requestId },
+        { from: request.to, to: request.from },
+      ],
     });
 
-    await FriendRequest.findByIdAndDelete(requestId);
-
     const from = await User.findById(request.from)
-      .select("_id displayName avatarUrl")
+      .select("_id username displayName avatarUrl")
       .lean();
 
     return res.status(200).json({
       message: "Chấp nhận lời mời kết bạn thành công",
-      newFriend: {
-        _id: from?._id,
-        displayName: from?.displayName,
-        avatarUrl: from?.avatarUrl,
-      },
+      newFriend: toFriendPayload(from),
     });
   } catch (error) {
     console.error("Lỗi khi chấp nhận lời mời kết bạn", error);
@@ -112,6 +142,10 @@ export const declineFriendRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
     const userId = req.user._id;
+
+    if (!mongoose.isValidObjectId(requestId)) {
+      return res.status(400).json({ message: "Lời mời kết bạn không hợp lệ" });
+    }
 
     const request = await FriendRequest.findById(requestId);
 
