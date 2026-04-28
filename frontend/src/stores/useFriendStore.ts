@@ -60,6 +60,8 @@ export const useFriendStore = create<FriendState>((set) => ({
       }));
     } catch (error) {
       console.error("Lỗi xảy ra khi acceptRequest", error);
+    } finally {
+      set({ loading: false });
     }
   },
   declineRequest: async (requestId) => {

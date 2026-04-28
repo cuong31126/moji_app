@@ -226,8 +226,11 @@ export const markAsSeen = async (req, res) => {
 
     return res.status(200).json({
       message: "Marked as seen",
-      seenBy: updated?.sennBy || [],
-      myUnreadCount: updated?.unreadCounts[userId] || 0,
+      seenBy: updated?.seenBy || [],
+      myUnreadCount:
+        updated?.unreadCounts?.get?.(userId) ??
+        updated?.unreadCounts?.[userId] ??
+        0,
     });
   } catch (error) {
     console.error("Lỗi khi mark as seen", error);
