@@ -64,6 +64,11 @@ export const chatService = {
     return res.data;
   },
 
+  async reactToMessage(messageId: string, emoji: string) {
+    const res = await api.patch(`/messages/${messageId}/reaction`, { emoji });
+    return res.data;
+  },
+
   async markAsSeen(conversationId: string) {
     const res = await api.patch(`/conversations/${conversationId}/seen`);
     return res.data;

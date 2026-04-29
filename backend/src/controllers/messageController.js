@@ -7,6 +7,8 @@ import {
 import { io } from "../socket/index.js";
 import { uploadImageFromBuffer } from "../middlewares/uploadMiddleware.js";
 
+const ALLOWED_REACTIONS = new Set(["👍", "❤️", "😂", "😮", "😢"]);
+
 export const uploadMessageImage = async (req, res) => {
   try {
     const file = req.file;
@@ -83,6 +85,70 @@ export const revokeMessage = async (req, res) => {
   } catch (error) {
     console.error("Lỗi xảy ra khi thu hồi tin nhắn", error);
     return res.status(500).json({ message: "Lỗi hệ thống" });
+  }
+};
+
+export const reactToMessage = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { emoji } = req.body;
+    const userId = req.user._id;
+
+    if (!ALLOWED_REACTIONS.has(emoji)) {
+      return res.status(400).json({ message: "Invalid reaction" });
+    }
+
+    const message = await Message.findById(messageId);
+
+    if (!message) {
+      return res.status(404).json({ message: "Message not found" });
+    }
+
+    if (message.isRevoked) {
+      return res.status(400).json({ message: "Cannot react to a revoked message" });
+    }
+
+    const conversation = await Conversation.findOne({
+      _id: message.conversationId,
+      "participants.userId": userId,
+    });
+
+    if (!conversation) {
+      return res.status(403).json({ message: "You are not in this conversation" });
+    }
+
+    const existingReaction = message.reactions.find(
+      (reaction) => reaction.user.toString() === userId.toString()
+    );
+
+    if (existingReaction) {
+      existingReaction.emoji = emoji;
+      existingReaction.createdAt = new Date();
+    } else {
+      message.reactions.push({
+        user: userId,
+        emoji,
+        createdAt: new Date(),
+      });
+    }
+
+    await message.save();
+
+    const payload = {
+      messageId: message._id,
+      conversationId: message.conversationId,
+      reactions: message.reactions,
+    };
+
+    io.to(message.conversationId.toString()).emit(
+      "message:reaction_updated",
+      payload
+    );
+
+    return res.status(200).json(payload);
+  } catch (error) {
+    console.error("Error reacting to message", error);
+    return res.status(500).json({ message: "System error" });
   }
 };
 

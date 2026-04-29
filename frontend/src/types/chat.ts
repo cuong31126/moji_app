@@ -29,6 +29,13 @@ export interface LastMessage {
   };
 }
 
+export interface MessageReaction {
+  _id?: string;
+  user: string | { _id: string };
+  emoji: string;
+  createdAt: string;
+}
+
 export interface Conversation {
   _id: string;
   type: "direct" | "group";
@@ -55,6 +62,7 @@ export interface Message {
   messageType?: "text" | "image" | "trash_report" | "system";
   trashReport?: TrashReport | string | null;
   isRevoked?: boolean;
+  reactions?: MessageReaction[];
   revokedAt?: string | null;
   updatedAt?: string | null;
   createdAt: string;

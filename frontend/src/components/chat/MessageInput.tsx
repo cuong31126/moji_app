@@ -130,13 +130,12 @@ const MessageInput = ({ selectedConvo }: { selectedConvo: Conversation }) => {
       setImageFile(null);
       setSuggestedEmojis([]);
       setEmojiError("");
-      focusMessageInput();
     } catch (error) {
       console.error(error);
       toast.error("Lỗi xảy ra khi gửi tin nhắn. Bạn hãy thử lại!");
-      focusMessageInput();
     } finally {
       setSending(false);
+      focusMessageInput();
     }
   };
 

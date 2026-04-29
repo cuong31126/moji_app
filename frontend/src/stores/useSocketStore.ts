@@ -80,6 +80,12 @@ export const useSocketStore = create<SocketState>((set, get) => ({
       }
     });
 
+    socket.on("message:reaction_updated", ({ conversationId, messageId, reactions }) => {
+      useChatStore
+        .getState()
+        .updateMessageReactions(conversationId, messageId, reactions);
+    });
+
     // new group chat
     socket.on("new-group", (conversation) => {
       useChatStore.getState().addConvo(conversation);

@@ -177,6 +177,40 @@ export const useChatStore = create<ChatState>()(
           };
         });
       },
+      updateMessageReactions: (conversationId, messageId, reactions) => {
+        set((state) => {
+          const current = state.messages[conversationId];
+
+          if (!current) {
+            return state;
+          }
+
+          return {
+            messages: {
+              ...state.messages,
+              [conversationId]: {
+                ...current,
+                items: current.items.map((item) =>
+                  item._id === messageId ? { ...item, reactions } : item
+                ),
+              },
+            },
+          };
+        });
+      },
+      reactToMessage: async (messageId, emoji) => {
+        try {
+          const result = await chatService.reactToMessage(messageId, emoji);
+          get().updateMessageReactions(
+            result.conversationId,
+            result.messageId,
+            result.reactions
+          );
+        } catch (error) {
+          console.error("Error reacting to message", error);
+          throw error;
+        }
+      },
       revokeMessage: async (messageId) => {
         try {
           const result = await chatService.revokeMessage(messageId);

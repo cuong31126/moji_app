@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { cn, formatMessageTime } from "@/lib/utils";
-import type { Conversation, Message, Participant } from "@/types/chat";
+import type { Conversation, Message, MessageReaction, Participant } from "@/types/chat";
 import UserAvatar from "./UserAvatar";
 import { Card } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import {
   Dialog,
   DialogContent,
@@ -13,10 +14,17 @@ import {
   DialogTitle,
   DialogFooter,
 } from "../ui/dialog";
-import { MapPin, RotateCcw, Trash2 } from "lucide-react";
+import { MapPin, RotateCcw, SmilePlus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router";
 import type { TrashReportStatus } from "@/types/report";
+import { useAuthStore } from "@/stores/useAuthStore";
+import { useChatStore } from "@/stores/useChatStore";
+
+const REACTION_OPTIONS = ["👍", "❤️", "😂", "😮", "😢"];
+
+const getReactionUserId = (reaction: MessageReaction) =>
+  typeof reaction.user === "string" ? reaction.user : reaction.user._id;
 
 interface MessageItemProps {
   message: Message;
@@ -36,8 +44,12 @@ const MessageItem = ({
   onRevoke,
 }: MessageItemProps) => {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const { reactToMessage } = useChatStore();
   const [openDialog, setOpenDialog] = useState(false);
   const [isRevoking, setIsRevoking] = useState(false);
+  const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
+  const [reacting, setReacting] = useState(false);
 
   const prev = index + 1 < messages.length ? messages[index + 1] : undefined;
 
@@ -53,6 +65,27 @@ const MessageItem = ({
     (p: Participant) => p._id.toString() === message.senderId.toString()
   );
   const canRevoke = message.isOwn && !message.isRevoked;
+  const canReact = !message.isRevoked;
+  const reactions = useMemo(() => message.reactions ?? [], [message.reactions]);
+  const myReaction = user
+    ? reactions.find((reaction) => getReactionUserId(reaction) === user._id)
+    : undefined;
+  const reactionSummary = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    reactions.forEach((reaction) => {
+      counts.set(reaction.emoji, (counts.get(reaction.emoji) ?? 0) + 1);
+    });
+
+    return Array.from(counts.entries()).map(([emoji, count]) => ({
+      emoji,
+      count,
+    }));
+  }, [reactions]);
+  const totalReactionCount = reactionSummary.reduce(
+    (total, reaction) => total + reaction.count,
+    0
+  );
   const trashReport =
     message.trashReport && typeof message.trashReport === "object"
       ? message.trashReport
@@ -105,6 +138,19 @@ const MessageItem = ({
     }
   };
 
+  const handleReactionSelect = async (emoji: string) => {
+    try {
+      setReacting(true);
+      await reactToMessage(message._id, emoji);
+      setReactionPickerOpen(false);
+    } catch (error) {
+      console.error(error);
+      toast.error("Khong them duoc reaction");
+    } finally {
+      setReacting(false);
+    }
+  };
+
   return (
     <>
       {isShowTime && (
@@ -150,6 +196,53 @@ const MessageItem = ({
                 <RotateCcw className="size-3.5" />
               </Button>
             )}
+
+            <div
+              className={cn(
+                "relative",
+                reactionSummary.length > 0 && "mb-3"
+              )}
+            >
+              {canReact && (
+                <Popover
+                  open={reactionPickerOpen}
+                  onOpenChange={setReactionPickerOpen}
+                >
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      title="Reaction"
+                      className={cn(
+                        "absolute -right-3 -top-3 z-20 size-7 rounded-full border border-border/60 bg-background shadow-sm opacity-100 transition-opacity hover:bg-accent md:opacity-0 md:group-hover:opacity-100",
+                        reactionPickerOpen && "opacity-100"
+                      )}
+                    >
+                      <SmilePlus className="size-3.5" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    side="top"
+                    align="end"
+                    className="flex w-auto gap-1 rounded-full border-border/70 bg-background p-1 shadow-lg"
+                  >
+                    {REACTION_OPTIONS.map((emoji) => (
+                      <Button
+                        key={emoji}
+                        type="button"
+                        variant={myReaction?.emoji === emoji ? "secondary" : "ghost"}
+                        size="icon"
+                        className="size-8 rounded-full text-base"
+                        onClick={() => handleReactionSelect(emoji)}
+                        disabled={reacting}
+                      >
+                        {emoji}
+                      </Button>
+                    ))}
+                  </PopoverContent>
+                </Popover>
+              )}
 
             <Card
               className={cn(
@@ -234,6 +327,25 @@ const MessageItem = ({
                 </>
               )}
             </Card>
+
+              {reactionSummary.length > 0 && (
+                <div className="absolute -bottom-3 right-2 z-10 inline-flex h-6 items-center gap-0.5 rounded-full border border-border/60 bg-background px-1.5 text-xs shadow-sm">
+                  {reactionSummary.slice(0, 3).map((reaction) => (
+                    <span
+                      key={reaction.emoji}
+                      className="leading-none"
+                    >
+                      {reaction.emoji}
+                    </span>
+                  ))}
+                  {totalReactionCount > 1 && (
+                    <span className="pl-0.5 text-[11px] font-medium text-muted-foreground">
+                      {totalReactionCount}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {message.isOwn && message._id === selectedConvo.lastMessage?._id && (

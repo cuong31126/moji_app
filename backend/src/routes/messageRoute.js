@@ -1,6 +1,7 @@
 import express from "express";
 
 import {
+  reactToMessage,
   revokeMessage,
   sendDirectMessage,
   sendGroupMessage,
@@ -17,6 +18,7 @@ const router = express.Router();
 router.post("/direct", checkFriendship, sendDirectMessage);
 router.post("/group", checkGroupMembership, sendGroupMessage);
 router.post("/upload-image", upload.single("file"), uploadMessageImage);
+router.patch("/:messageId/reaction", reactToMessage);
 router.patch("/:messageId/revoke", revokeMessage);
 
 export default router;
