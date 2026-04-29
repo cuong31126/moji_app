@@ -4,11 +4,13 @@ import type { Conversation } from "@/types/chat";
 import ChatCard from "./ChatCard";
 import UnreadCountBadge from "./UnreadCountBadge";
 import GroupChatAvatar from "./GroupChatAvatar";
+import { useNavigate } from "react-router";
 
 const GroupChatCard = ({ convo }: { convo: Conversation }) => {
   const { user } = useAuthStore();
   const { activeConversationId, setActiveConversation, messages, fetchMessages } =
     useChatStore();
+  const navigate = useNavigate();
 
   if (!user) return null;
 
@@ -19,6 +21,7 @@ const GroupChatCard = ({ convo }: { convo: Conversation }) => {
     if (!messages[id]) {
       await fetchMessages();
     }
+    navigate("/");
   };
 
   return (

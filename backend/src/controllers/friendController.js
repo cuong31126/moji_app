@@ -247,3 +247,33 @@ export const getFriendRequests = async (req, res) => {
     return res.status(500).json({ message: "Lỗi hệ thống" });
   }
 };
+
+export const withdrawFriendRequest = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const userId = req.user._id;
+
+    if (!mongoose.isValidObjectId(requestId)) {
+      return res.status(400).json({ message: "Lời mời kết bạn không hợp lệ" });
+    }
+
+    const request = await FriendRequest.findById(requestId);
+
+    if (!request) {
+      return res.status(404).json({ message: "Không tìm thấy lời mời kết bạn" });
+    }
+
+    if (request.from.toString() !== userId.toString()) {
+      return res
+        .status(403)
+        .json({ message: "Bạn không có quyền thu hồi lời mời này" });
+    }
+
+    await FriendRequest.findByIdAndDelete(requestId);
+
+    return res.status(200).json({ message: "Thu hồi lời mời kết bạn thành công" });
+  } catch (error) {
+    console.error("Lỗi khi thu hồi lời mời kết bạn", error);
+    return res.status(500).json({ message: "Lỗi hệ thống" });
+  }
+};

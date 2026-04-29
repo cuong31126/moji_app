@@ -7,7 +7,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Label } from "../ui/label";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
+import { useEffect } from "react";
+import { toast } from "sonner";
+import { SocialLoginButtons } from "./SocialLoginButtons";
 
 const signInSchema = z.object({
   username: z.string().min(3, "Tên đăng nhập phải có ít nhất 3 ký tự"),
@@ -19,6 +22,7 @@ type SignInFormValues = z.infer<typeof signInSchema>;
 export function SigninForm({ className, ...props }: React.ComponentProps<"div">) {
   const { signIn } = useAuthStore();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const {
     register,
     handleSubmit,
@@ -32,6 +36,21 @@ export function SigninForm({ className, ...props }: React.ComponentProps<"div">)
     await signIn(username, password);
     navigate("/");
   };
+
+  useEffect(() => {
+    const socialError = searchParams.get("socialError");
+
+    if (!socialError) {
+      return;
+    }
+
+    const provider = socialError.split("_")[0];
+    const reason = socialError.includes("not_configured")
+      ? "chưa được cấu hình trên backend"
+      : "không thành công";
+
+    toast.error(`Đăng nhập ${provider} ${reason}.`);
+  }, [searchParams]);
 
   return (
     <div
@@ -49,12 +68,12 @@ export function SigninForm({ className, ...props }: React.ComponentProps<"div">)
               <div className="flex flex-col items-center text-center gap-2">
                 <a
                   href="/"
-                  className="mx-auto block w-fit text-center"
+                  className="mx-auto inline-flex w-fit rounded-2xl bg-transparent p-1 ring-1 ring-border/40 dark:ring-primary/25"
                 >
                   <img
-                    src="/logo23.png"
-                    alt="logo"
-                    className="h-12 w-auto"
+                    src="/logo23-transparent.png"
+                    alt="EcoMoji logo"
+                    className="h-12 w-auto object-contain"
                   />
                 </a>
 
@@ -113,6 +132,17 @@ export function SigninForm({ className, ...props }: React.ComponentProps<"div">)
               >
                 Đăng nhập
               </Button>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">Hoặc</span>
+                </div>
+              </div>
+
+              <SocialLoginButtons />
 
               <div className="text-center text-sm">
                 Chưa có tài khoản?{" "}

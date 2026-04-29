@@ -6,6 +6,8 @@ import userRoute from "./routes/userRoute.js";
 import friendRoute from "./routes/friendRoute.js";
 import messageRoute from "./routes/messageRoute.js";
 import conversationRoute from "./routes/conversationRoute.js";
+import reportRoute from "./routes/reportRoute.js";
+import aiRoute from "./routes/aiRoute.js";
 import cookieParser from "cookie-parser";
 import { protectedRoute } from "./middlewares/authMiddleware.js";
 import cors from "cors";
@@ -13,6 +15,8 @@ import swaggerUi from "swagger-ui-express";
 import fs from "fs";
 import { app, server } from "./socket/index.js";
 import { v2 as cloudinary } from "cloudinary";
+import passport from "passport";
+import { configurePassport } from "./config/passport.js";
 
 dotenv.config();
 
@@ -23,6 +27,8 @@ const PORT = process.env.PORT || 5001;
 app.use(express.json());
 app.use(cookieParser());
 app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
+configurePassport();
+app.use(passport.initialize());
 
 // CLOUDINARY Configuration
 cloudinary.config({
@@ -45,6 +51,8 @@ app.use("/api/users", userRoute);
 app.use("/api/friends", friendRoute);
 app.use("/api/messages", messageRoute);
 app.use("/api/conversations", conversationRoute);
+app.use("/api/reports", reportRoute);
+app.use("/api/ai", aiRoute);
 
 connectDB().then(() => {
   server.listen(PORT, () => {

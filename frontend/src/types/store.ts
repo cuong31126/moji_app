@@ -22,7 +22,7 @@ export interface AuthState {
   signIn: (username: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   fetchMe: () => Promise<void>;
-  refresh: () => Promise<void>;
+  refresh: (options?: { silent?: boolean }) => Promise<void>;
 }
 
 export interface ThemeState {
@@ -62,6 +62,8 @@ export interface ChatState {
   ) => Promise<void>;
   // add message
   addMessage: (message: Message) => Promise<void>;
+  updateMessage: (message: Message) => void;
+  revokeMessage: (messageId: string) => Promise<void>;
   // update convo
   updateConversation: (conversation: ConversationUpdate) => void;
   markAsSeen: () => Promise<void>;
@@ -90,6 +92,7 @@ export interface FriendState {
   getAllFriendRequests: () => Promise<void>;
   acceptRequest: (requestId: string) => Promise<void>;
   declineRequest: (requestId: string) => Promise<void>;
+  withdrawRequest: (requestId: string) => Promise<void>;
   getFriends: () => Promise<void>;
 }
 

@@ -27,16 +27,12 @@ export const useAuthStore = create<AuthState>()(
       signUp: async (username, password, email, firstName, lastName) => {
         try {
           set({ loading: true });
-
-          //  gọi api
           await authService.signUp(username, password, email, firstName, lastName);
-
-          toast.success(
-            "Đăng ký thành công! Bạn sẽ được chuyển sang trang đăng nhập."
-          );
+          toast.success("Đăng ký thành công! Bạn có thể đăng nhập ngay.");
         } catch (error) {
           console.error(error);
           toast.error("Đăng ký không thành công");
+          throw error;
         } finally {
           set({ loading: false });
         }
@@ -46,27 +42,28 @@ export const useAuthStore = create<AuthState>()(
           get().clearState();
           set({ loading: true });
 
-          const { accessToken } = await authService.signIn(username, password);
+          const { accessToken, user } = await authService.signIn(username, password);
           get().setAccessToken(accessToken);
+          get().setUser(user);
 
-          await get().fetchMe();
           useChatStore.getState().fetchConversations();
-
-          toast.success("Chào mừng bạn quay lại với Moji 🎉");
+          toast.success("Chào mừng bạn quay lại với Moji");
         } catch (error) {
           console.error(error);
           toast.error("Đăng nhập không thành công!");
+          throw error;
         } finally {
           set({ loading: false });
         }
       },
       signOut: async () => {
         try {
-          get().clearState();
           await authService.signOut();
+          get().clearState();
           toast.success("Logout thành công!");
         } catch (error) {
           console.error(error);
+          get().clearState();
           toast.error("Lỗi xảy ra khi logout. Hãy thử lại!");
         }
       },
@@ -74,31 +71,32 @@ export const useAuthStore = create<AuthState>()(
         try {
           set({ loading: true });
           const user = await authService.fetchMe();
-
           set({ user });
         } catch (error) {
           console.error(error);
           set({ user: null, accessToken: null });
           toast.error("Lỗi xảy ra khi lấy dữ liệu người dùng. Hãy thử lại!");
+          throw error;
         } finally {
           set({ loading: false });
         }
       },
-      refresh: async () => {
+      refresh: async (options) => {
         try {
           set({ loading: true });
-          const { user, fetchMe, setAccessToken } = get();
-          const accessToken = await authService.refresh();
+          const { accessToken, user } = await authService.refresh();
 
-          setAccessToken(accessToken);
-
-          if (!user) {
-            await fetchMe();
-          }
+          get().setAccessToken(accessToken);
+          get().setUser(user);
         } catch (error) {
-          console.error(error);
-          toast.error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!");
+          console.warn("[auth] Refresh failed", error);
+
+          if (!options?.silent) {
+            toast.error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!");
+          }
+
           get().clearState();
+          throw error;
         } finally {
           set({ loading: false });
         }
@@ -106,7 +104,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: "auth-storage",
-      partialize: (state) => ({ user: state.user }), // chỉ persist user
+      partialize: (state) => ({ user: state.user }),
     }
   )
 );

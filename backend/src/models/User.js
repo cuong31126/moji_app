@@ -1,4 +1,21 @@
-import mongoose, { trusted } from 'mongoose' ; 
+import mongoose from "mongoose";
+
+const authProviderSchema = new mongoose.Schema(
+  {
+    provider: {
+      type: String,
+      enum: ["local", "google", "github", "facebook"],
+      required: true,
+    },
+    providerId: {
+      type: String,
+      required: true,
+    },
+  },
+  {
+    _id: false,
+  }
+);
 
 const userSchema = new mongoose.Schema({
     username : {
@@ -10,7 +27,6 @@ const userSchema = new mongoose.Schema({
     } , 
     hashedPassword : {
         type : String ,
-        required : true ,
     }, 
     email : {
         type :String ,
@@ -38,6 +54,10 @@ const userSchema = new mongoose.Schema({
         type : String ,
         sparse : true ,
     },
+    authProviders: {
+        type: [authProviderSchema],
+        default: [],
+    },
     
 
     }, 
@@ -46,6 +66,11 @@ const userSchema = new mongoose.Schema({
 
     }
 ); 
+
+userSchema.index(
+    { "authProviders.provider": 1, "authProviders.providerId": 1 },
+    { sparse: true }
+);
 
 const User = mongoose.model("User" , userSchema); 
 export default User ; 

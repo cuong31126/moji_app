@@ -7,12 +7,14 @@ import UserAvatar from "./UserAvatar";
 import StatusBadge from "./StatusBadge";
 import UnreadCountBadge from "./UnreadCountBadge";
 import { useSocketStore } from "@/stores/useSocketStore";
+import { useNavigate } from "react-router";
 
 const DirectMessageCard = ({ convo }: { convo: Conversation }) => {
   const { user } = useAuthStore();
   const { activeConversationId, setActiveConversation, messages, fetchMessages } =
     useChatStore();
   const { onlineUsers } = useSocketStore();
+  const navigate = useNavigate();
 
   if (!user) return null;
 
@@ -27,6 +29,7 @@ const DirectMessageCard = ({ convo }: { convo: Conversation }) => {
     if (!messages[id]) {
       await fetchMessages();
     }
+    navigate("/");
   };
 
   return (

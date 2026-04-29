@@ -3,6 +3,7 @@ import SignInPage from "./pages/SignInPage";
 import ChatAppPage from "./pages/ChatAppPage";
 import { Toaster } from "sonner";
 import SignUpPage from "./pages/SignUpPage";
+import SocialCallbackPage from "./pages/SocialCallbackPage";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import { useThemeStore } from "./stores/useThemeStore";
 import { useEffect } from "react";
@@ -40,12 +41,20 @@ function App() {
             path="/signup"
             element={<SignUpPage />}
           />
+          <Route
+            path="/auth/social-callback"
+            element={<SocialCallbackPage />}
+          />
 
           {/* protectect routes */}
           <Route element={<ProtectedRoute />}>
             <Route
               path="/"
               element={<ChatAppPage />}
+            />
+            <Route
+              path="/map"
+              element={<ChatAppPage view="map" />}
             />
           </Route>
         </Routes>

@@ -100,6 +100,7 @@ export const useChatStore = create<ChatState>()(
           }));
         } catch (error) {
           console.error("Lỗi xảy ra khi gửi direct message", error);
+          throw error;
         }
       },
       sendGroupMessage: async (conversationId, content, imgUrl) => {
@@ -112,6 +113,7 @@ export const useChatStore = create<ChatState>()(
           }));
         } catch (error) {
           console.error("Lỗi xảy ra gửi group message", error);
+          throw error;
         }
       },
       addMessage: async (message) => {
@@ -148,6 +150,44 @@ export const useChatStore = create<ChatState>()(
           });
         } catch (error) {
           console.error("Lỗi xảy khi ra add message:", error);
+        }
+      },
+      updateMessage: (message) => {
+        const convoId = message.conversationId;
+
+        set((state) => {
+          const current = state.messages[convoId];
+
+          if (!current) {
+            return state;
+          }
+
+          return {
+            messages: {
+              ...state.messages,
+              [convoId]: {
+                ...current,
+                items: current.items.map((item) =>
+                  item._id === message._id
+                    ? { ...item, ...message, isOwn: item.isOwn }
+                    : item
+                ),
+              },
+            },
+          };
+        });
+      },
+      revokeMessage: async (messageId) => {
+        try {
+          const result = await chatService.revokeMessage(messageId);
+          get().updateMessage(result.message);
+
+          if (result.conversation) {
+            get().updateConversation(result.conversation);
+          }
+        } catch (error) {
+          console.error("Lỗi xảy ra khi thu hồi tin nhắn", error);
+          throw error;
         }
       },
       updateConversation: (conversation) => {

@@ -23,11 +23,15 @@ import { useThemeStore } from "@/stores/useThemeStore";
 import { useAuthStore } from "@/stores/useAuthStore";
 import ConversationSkeleton from "../skeleton/ConversationSkeleton";
 import { useChatStore } from "@/stores/useChatStore";
+import { Link, useLocation } from "react-router";
+import { Map, MessageCircle } from "lucide-react";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { isDark, toggleTheme } = useThemeStore();
   const { user } = useAuthStore();
   const { convoLoading } = useChatStore();
+  const location = useLocation();
+  const isMap = location.pathname.startsWith("/map");
 
   return (
     <Sidebar
@@ -43,7 +47,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               asChild
               className="bg-gradient-primary"
             >
-              <a href="#">
+              <Link to="/">
                 <div className="flex w-full items-center px-2 justify-between">
                   <div className="flex items-center gap-2">
                     <Leaf className="size-5 text-white" />
@@ -59,7 +63,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <Moon className="size-4 text-white/80" />
                   </div>
                 </div>
-              </a>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -67,6 +71,31 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       {/* Content */}
       <SidebarContent className="beautiful-scrollbar">
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <div className="grid grid-cols-2 gap-2 px-2">
+              <SidebarMenuButton
+                asChild
+                className={!isMap ? "bg-sidebar-accent font-semibold" : ""}
+              >
+                <Link to="/">
+                  <MessageCircle className="size-4" />
+                  Chat
+                </Link>
+              </SidebarMenuButton>
+              <SidebarMenuButton
+                asChild
+                className={isMap ? "bg-sidebar-accent font-semibold" : ""}
+              >
+                <Link to="/map">
+                  <Map className="size-4" />
+                  Map
+                </Link>
+              </SidebarMenuButton>
+            </div>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
         {/* New Chat */}
         <SidebarGroup>
           <SidebarGroupContent>

@@ -124,6 +124,22 @@ export const useFriendStore = create<FriendState>((set, get) => ({
     }
   },
 
+  withdrawRequest: async (requestId) => {
+    try {
+      set({ loading: true });
+      await friendService.withdrawRequest(requestId);
+
+      set((state) => ({
+        sentList: state.sentList.filter((request) => request._id !== requestId),
+      }));
+    } catch (error) {
+      console.error("Error while withdrawing friend request", error);
+      throw error;
+    } finally {
+      set({ loading: false });
+    }
+  },
+
   getFriends: async () => {
     try {
       set({ loading: true });

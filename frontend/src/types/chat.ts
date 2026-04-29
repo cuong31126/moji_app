@@ -1,3 +1,5 @@
+import type { TrashReport } from "./report";
+
 export interface Participant {
   _id: string;
   displayName: string;
@@ -50,6 +52,10 @@ export interface Message {
   senderId: string;
   content: string | null;
   imgUrl?: string | null;
+  messageType?: "text" | "image" | "trash_report" | "system";
+  trashReport?: TrashReport | string | null;
+  isRevoked?: boolean;
+  revokedAt?: string | null;
   updatedAt?: string | null;
   createdAt: string;
   isOwn?: boolean;

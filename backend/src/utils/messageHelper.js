@@ -3,12 +3,19 @@ export const updateConversationAfterCreateMessage = (
   message,
   senderId
 ) => {
+  const content =
+    message.messageType === "trash_report"
+      ? "Đã chia sẻ một điểm rác"
+      : message.messageType === "system"
+      ? message.content
+      : message.content || (message.imgUrl ? "Đã gửi một ảnh" : "");
+
   conversation.set({
     seenBy: [],
     lastMessageAt: message.createdAt,
     lastMessage: {
       _id: message._id,
-      content: message.content,
+      content,
       senderId,
       createdAt: message.createdAt,
     },

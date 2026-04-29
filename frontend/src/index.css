@@ -308,6 +308,78 @@
     animation: messageSlideIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
   }
 
+  .leaflet-container {
+    font-family: inherit;
+    background: hsl(var(--muted));
+  }
+
+  .leaflet-control-attribution {
+    border-top-left-radius: 8px;
+    font-size: 10px;
+  }
+
+  .eco-marker-shell {
+    background: transparent;
+    border: 0;
+  }
+
+  .eco-trash-marker {
+    position: relative;
+    display: flex;
+    width: 34px;
+    height: 34px;
+    align-items: center;
+    justify-content: center;
+    border: 3px solid white;
+    border-radius: 50% 50% 50% 8px;
+    box-shadow: 0 16px 34px rgb(15 23 42 / 0.28);
+    transform: rotate(-45deg);
+  }
+
+  .eco-trash-marker span {
+    display: block;
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: white;
+    opacity: 0.95;
+  }
+
+  .eco-marker-active {
+    background: #ef4444;
+  }
+
+  .eco-marker-verified {
+    background: #f97316;
+  }
+
+  .eco-marker-pending {
+    background: #0ea5e9;
+  }
+
+  .eco-marker-cleaned {
+    background: #10b981;
+  }
+
+  .eco-user-marker {
+    position: relative;
+    display: grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border: 3px solid white;
+    border-radius: 999px;
+    background: #2563eb;
+    box-shadow: 0 0 0 8px rgb(37 99 235 / 0.18);
+  }
+
+  .eco-user-marker span {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: white;
+  }
+
   @keyframes messageSlideIn {
     0% {
       opacity: 0;

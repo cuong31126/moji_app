@@ -20,6 +20,24 @@ const messageSchema = new mongoose.Schema(
     imgUrl: {
       type: String,
     },
+    messageType: {
+      type: String,
+      enum: ["text", "image", "trash_report", "system"],
+      default: "text",
+    },
+    trashReport: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "TrashReport",
+      default: null,
+    },
+    isRevoked: {
+      type: Boolean,
+      default: false,
+    },
+    revokedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

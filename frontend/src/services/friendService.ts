@@ -61,6 +61,14 @@ export const friendService = {
     }
   },
 
+  async withdrawRequest(requestId: string) {
+    try {
+      await api.post(`/friends/requests/${requestId}/withdraw`);
+    } catch (error) {
+      throwFriendError(error, "Không thu hồi được lời mời kết bạn");
+    }
+  },
+
   async getFriendList() {
     const res = await api.get("/friends");
     return res.data.friends;

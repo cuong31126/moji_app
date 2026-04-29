@@ -72,6 +72,14 @@ export const useSocketStore = create<SocketState>((set, get) => ({
       useChatStore.getState().updateConversation(updated);
     });
 
+    socket.on("message-revoked", ({ message, conversation }) => {
+      useChatStore.getState().updateMessage(message);
+
+      if (conversation) {
+        useChatStore.getState().updateConversation(conversation);
+      }
+    });
+
     // new group chat
     socket.on("new-group", (conversation) => {
       useChatStore.getState().addConvo(conversation);

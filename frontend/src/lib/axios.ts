@@ -41,14 +41,18 @@ api.interceptors.response.use(
 
       try {
         const res = await api.post("/auth/refresh");
-        const newAccessToken = res.data.accessToken;
+        const { accessToken: newAccessToken, user } = res.data;
 
         useAuthStore.getState().setAccessToken(newAccessToken);
+        if (user) {
+          useAuthStore.getState().setUser(user);
+        }
 
         originalRequest.headers = originalRequest.headers || {};
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
         return api(originalRequest);
       } catch (refreshError) {
+        console.warn("[axios] Refresh failed while retrying request", refreshError);
         useAuthStore.getState().clearState();
         return Promise.reject(refreshError);
       }

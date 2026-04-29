@@ -15,7 +15,7 @@ const ProtectedRoute = () => {
 
         // 2. Nếu chưa có token, thử chạy refresh để lấy lại từ cookie
         if (!currentToken) {
-          await refresh();
+          await refresh({ silent: true });
           currentToken = useAuthStore.getState().accessToken; // Cập nhật lại biến sau khi refresh
         }
 

@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Label } from "../ui/label";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useNavigate } from "react-router";
+import { SocialLoginButtons } from "./SocialLoginButtons";
 
 const signUpSchema = z.object({
   firstname: z.string().min(1, "Tên bắt buộc phải có"),
@@ -55,12 +56,12 @@ export function SignupForm({ className, ...props }: React.ComponentProps<"div">)
               <div className="flex flex-col items-center text-center gap-2">
                 <a
                   href="/"
-                  className="mx-auto block w-fit text-center"
+                  className="mx-auto inline-flex w-fit rounded-2xl bg-transparent p-1 ring-1 ring-border/40 dark:ring-primary/25"
                 >
                   <img
-                    src="/logo.svg"
-                    alt="logo"
-                    className="h-12 w-auto"
+                    src="/logo23-transparent.png"
+                    alt="EcoMoji logo"
+                    className="h-12 w-auto object-contain"
                   />
                 </a>
 
@@ -171,6 +172,17 @@ export function SignupForm({ className, ...props }: React.ComponentProps<"div">)
               >
                 Tạo tài khoản
               </Button>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">Hoặc</span>
+                </div>
+              </div>
+
+              <SocialLoginButtons />
 
               <div className="text-center text-sm">
                 Đã có tài khoản?{" "}

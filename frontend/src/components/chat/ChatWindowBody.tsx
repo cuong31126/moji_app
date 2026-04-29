@@ -10,6 +10,7 @@ const ChatWindowBody = () => {
     conversations,
     messages: allMessages,
     fetchMessages,
+    revokeMessage,
   } = useChatStore();
   const [lastMessageStatus, setLastMessageStatus] = useState<"delivered" | "seen">(
     "delivered"
@@ -127,6 +128,7 @@ const ChatWindowBody = () => {
               messages={reversedMessages}
               selectedConvo={selectedConvo}
               lastMessageStatus={lastMessageStatus}
+              onRevoke={revokeMessage}
             />
           ))}
         </InfiniteScroll>
