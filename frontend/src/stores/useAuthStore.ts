@@ -3,7 +3,12 @@ import { toast } from "sonner";
 import { authService } from "@/services/authService";
 import type { AuthState } from "@/types/store";
 import { persist } from "zustand/middleware";
-import { useChatStore } from "./useChatStore";
+
+const resetChatState = () => {
+  void import("./useChatStore").then(({ useChatStore }) => {
+    useChatStore.getState().reset();
+  });
+};
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -20,7 +25,7 @@ export const useAuthStore = create<AuthState>()(
       },
       clearState: () => {
         set({ accessToken: null, user: null, loading: false });
-        useChatStore.getState().reset();
+        resetChatState();
         localStorage.clear();
         sessionStorage.clear();
       },
@@ -46,6 +51,7 @@ export const useAuthStore = create<AuthState>()(
           get().setAccessToken(accessToken);
           get().setUser(user);
 
+          const { useChatStore } = await import("./useChatStore");
           useChatStore.getState().fetchConversations();
           toast.success("Chào mừng bạn quay lại với Moji");
         } catch (error) {

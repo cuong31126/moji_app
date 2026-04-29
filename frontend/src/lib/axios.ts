@@ -1,4 +1,3 @@
-import { useAuthStore } from "@/stores/useAuthStore";
 import axios from "axios";
 
 const api = axios.create({
@@ -6,8 +5,13 @@ const api = axios.create({
   withCredentials: true,
 });
 
-api.interceptors.request.use((config) => {
-  const { accessToken } = useAuthStore.getState();
+const getAuthStore = async () => {
+  const { useAuthStore } = await import("@/stores/useAuthStore");
+  return useAuthStore;
+};
+
+api.interceptors.request.use(async (config) => {
+  const { accessToken } = (await getAuthStore()).getState();
 
   if (accessToken) {
     config.headers.Authorization = `Bearer ${accessToken}`;
@@ -42,10 +46,11 @@ api.interceptors.response.use(
       try {
         const res = await api.post("/auth/refresh");
         const { accessToken: newAccessToken, user } = res.data;
+        const authStore = await getAuthStore();
 
-        useAuthStore.getState().setAccessToken(newAccessToken);
+        authStore.getState().setAccessToken(newAccessToken);
         if (user) {
-          useAuthStore.getState().setUser(user);
+          authStore.getState().setUser(user);
         }
 
         originalRequest.headers = originalRequest.headers || {};
@@ -53,7 +58,8 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         console.warn("[axios] Refresh failed while retrying request", refreshError);
-        useAuthStore.getState().clearState();
+        const authStore = await getAuthStore();
+        authStore.getState().clearState();
         return Promise.reject(refreshError);
       }
     }

@@ -1,5 +1,5 @@
 import type { FieldErrors, UseFormRegister } from "react-hook-form";
-import type { IFormValues } from "../chat/AddFriendModal";
+import type { AddFriendFormValues } from "@/types/form";
 import { Label } from "../ui/label";
 import { Input } from "../ui/input";
 import { DialogFooter } from "../ui/dialog";
@@ -8,8 +8,8 @@ import { Button } from "../ui/button";
 import { Search } from "lucide-react";
 
 interface SearchFormProps {
-  register: UseFormRegister<IFormValues>;
-  errors: FieldErrors<IFormValues>;
+  register: UseFormRegister<AddFriendFormValues>;
+  errors: FieldErrors<AddFriendFormValues>;
   loading: boolean;
   usernameValue: string;
   isFound: boolean | null;

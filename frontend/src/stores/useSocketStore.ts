@@ -1,96 +1,118 @@
 import { create } from "zustand";
 import { io, type Socket } from "socket.io-client";
-import { useAuthStore } from "./useAuthStore";
 import type { SocketState } from "@/types/store";
-import { useChatStore } from "./useChatStore";
 
 const baseURL = import.meta.env.VITE_SOCKET_URL;
+
+const getAuthState = async () => {
+  const { useAuthStore } = await import("./useAuthStore");
+  return useAuthStore.getState();
+};
+
+const getChatState = async () => {
+  const { useChatStore } = await import("./useChatStore");
+  return useChatStore.getState();
+};
 
 export const useSocketStore = create<SocketState>((set, get) => ({
   socket: null,
   onlineUsers: [],
   connectSocket: () => {
-    const accessToken = useAuthStore.getState().accessToken;
-    const existingSocket = get().socket;
+    void (async () => {
+      const accessToken = (await getAuthState()).accessToken;
+      const existingSocket = get().socket;
 
-    if (existingSocket) return; // tránh tạo nhiều socket
+      if (existingSocket) return;
 
-    const socket: Socket = io(baseURL, {
-      auth: { token: accessToken },
-      transports: ["websocket"],
-    });
+      const socket: Socket = io(baseURL, {
+        auth: { token: accessToken },
+        transports: ["websocket"],
+      });
 
-    set({ socket });
+      set({ socket });
 
-    socket.on("connect", () => {
-      console.log("Đã kết nối với socket");
-    });
+      socket.on("connect", () => {
+        console.log("Da ket noi voi socket");
+      });
 
-    // online users
-    socket.on("online-users", (userIds) => {
-      set({ onlineUsers: userIds });
-    });
+      socket.on("online-users", (userIds) => {
+        set({ onlineUsers: userIds });
+      });
 
-    // new message
-    socket.on("new-message", ({ message, conversation, unreadCounts }) => {
-      useChatStore.getState().addMessage(message);
+      socket.on("new-message", ({ message, conversation, unreadCounts }) => {
+        void (async () => {
+          const chatState = await getChatState();
+          await chatState.addMessage(message);
 
-      const lastMessage = {
-        _id: conversation.lastMessage._id,
-        content: conversation.lastMessage.content,
-        createdAt: conversation.lastMessage.createdAt,
-        sender: {
-          _id: conversation.lastMessage.senderId,
-          displayName: "",
-          avatarUrl: null,
-        },
-      };
+          const lastMessage = {
+            _id: conversation.lastMessage._id,
+            content: conversation.lastMessage.content,
+            createdAt: conversation.lastMessage.createdAt,
+            sender: {
+              _id: conversation.lastMessage.senderId,
+              displayName: "",
+              avatarUrl: null,
+            },
+          };
 
-      const updatedConversation = {
-        ...conversation,
-        lastMessage,
-        unreadCounts,
-      };
+          const updatedConversation = {
+            ...conversation,
+            lastMessage,
+            unreadCounts,
+          };
 
-      if (useChatStore.getState().activeConversationId === message.conversationId) {
-        useChatStore.getState().markAsSeen();
-      }
+          const latestChatState = await getChatState();
 
-      useChatStore.getState().updateConversation(updatedConversation);
-    });
+          if (latestChatState.activeConversationId === message.conversationId) {
+            latestChatState.markAsSeen();
+          }
 
-    // read message
-    socket.on("read-message", ({ conversation, lastMessage }) => {
-      const updated = {
-        _id: conversation._id,
-        lastMessage,
-        lastMessageAt: conversation.lastMessageAt,
-        unreadCounts: conversation.unreadCounts,
-        seenBy: conversation.seenBy,
-      };
+          latestChatState.updateConversation(updatedConversation);
+        })();
+      });
 
-      useChatStore.getState().updateConversation(updated);
-    });
+      socket.on("read-message", ({ conversation, lastMessage }) => {
+        void (async () => {
+          const updated = {
+            _id: conversation._id,
+            lastMessage,
+            lastMessageAt: conversation.lastMessageAt,
+            unreadCounts: conversation.unreadCounts,
+            seenBy: conversation.seenBy,
+          };
 
-    socket.on("message-revoked", ({ message, conversation }) => {
-      useChatStore.getState().updateMessage(message);
+          (await getChatState()).updateConversation(updated);
+        })();
+      });
 
-      if (conversation) {
-        useChatStore.getState().updateConversation(conversation);
-      }
-    });
+      socket.on("message-revoked", ({ message, conversation }) => {
+        void (async () => {
+          const chatState = await getChatState();
+          chatState.updateMessage(message);
 
-    socket.on("message:reaction_updated", ({ conversationId, messageId, reactions }) => {
-      useChatStore
-        .getState()
-        .updateMessageReactions(conversationId, messageId, reactions);
-    });
+          if (conversation) {
+            chatState.updateConversation(conversation);
+          }
+        })();
+      });
 
-    // new group chat
-    socket.on("new-group", (conversation) => {
-      useChatStore.getState().addConvo(conversation);
-      socket.emit("join-conversation", conversation._id);
-    });
+      socket.on("message:reaction_updated", ({ conversationId, messageId, reactions }) => {
+        void (async () => {
+          (await getChatState()).updateMessageReactions(
+            conversationId,
+            messageId,
+            reactions
+          );
+        })();
+      });
+
+      socket.on("new-group", (conversation) => {
+        void (async () => {
+          (await getChatState()).addConvo(conversation);
+          socket.emit("join-conversation", conversation._id);
+        })();
+      });
+    })();
   },
   disconnectSocket: () => {
     const socket = get().socket;

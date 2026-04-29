@@ -1,5 +1,5 @@
 import type { UseFormRegister } from "react-hook-form";
-import type { IFormValues } from "../chat/AddFriendModal";
+import type { AddFriendFormValues } from "@/types/form";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
 import { DialogFooter } from "../ui/dialog";
@@ -7,7 +7,7 @@ import { Button } from "../ui/button";
 import { UserPlus } from "lucide-react";
 
 interface SendRequestProps {
-  register: UseFormRegister<IFormValues>;
+  register: UseFormRegister<AddFriendFormValues>;
   loading: boolean;
   searchedUsername: string;
   onSubmit?: (e: React.FormEvent<HTMLFormElement>) => void;

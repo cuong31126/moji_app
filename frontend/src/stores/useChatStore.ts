@@ -2,8 +2,11 @@ import { chatService } from "@/services/chatService";
 import type { ChatState } from "@/types/store";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { useAuthStore } from "./useAuthStore";
-import { useSocketStore } from "./useSocketStore";
+
+const getAuthState = async () => {
+  const { useAuthStore } = await import("./useAuthStore");
+  return useAuthStore.getState();
+};
 
 export const useChatStore = create<ChatState>()(
   persist(
@@ -38,7 +41,7 @@ export const useChatStore = create<ChatState>()(
       },// }, Xử lý tin nhắn cũ - Phân trang
       fetchMessages: async (conversationId) => {
         const { activeConversationId, messages } = get();
-        const { user } = useAuthStore.getState();
+        const { user } = await getAuthState();
 
         const convoId = conversationId ?? activeConversationId;
 
@@ -118,7 +121,7 @@ export const useChatStore = create<ChatState>()(
       },
       addMessage: async (message) => {
         try {
-          const { user } = useAuthStore.getState();
+          const { user } = await getAuthState();
           const { fetchMessages } = get();
 
           message.isOwn = message.senderId === user?._id;
@@ -233,7 +236,7 @@ export const useChatStore = create<ChatState>()(
       },
       markAsSeen: async () => {
         try {
-          const { user } = useAuthStore.getState();
+          const { user } = await getAuthState();
           const { activeConversationId, conversations } = get();
 
           if (!activeConversationId || !user) {
@@ -294,9 +297,8 @@ export const useChatStore = create<ChatState>()(
 
           get().addConvo(conversation);
 
-          useSocketStore
-            .getState()
-            .socket?.emit("join-conversation", conversation._id);
+          const { useSocketStore } = await import("./useSocketStore");
+          useSocketStore.getState().socket?.emit("join-conversation", conversation._id);
         } catch (error) {
           console.error("Lỗi xảy ra khi gọi createConversation trong store", error);
         } finally {

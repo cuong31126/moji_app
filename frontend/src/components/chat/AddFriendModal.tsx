@@ -13,11 +13,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import SearchForm from "@/components/AddFriendModal/SearchForm";
 import SendFriendRequestForm from "@/components/AddFriendModal/SendFriendRequestForm";
-
-export interface IFormValues {
-  username: string;
-  message: string;
-}
+import type { AddFriendFormValues } from "@/types/form";
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Lỗi xảy ra. Hãy thử lại";
@@ -35,7 +31,7 @@ const AddFriendModal = () => {
     control,
     reset,
     formState: { errors },
-  } = useForm<IFormValues>({
+  } = useForm<AddFriendFormValues>({
     defaultValues: { username: "", message: "" },
   });
 
