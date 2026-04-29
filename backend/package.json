@@ -5,7 +5,8 @@
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon -r dotenv/config src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "sync:trash-indexes": "node src/scripts/syncTrashReportGeoIndex.js"
   },
   "type": "module",
   "keywords": [],

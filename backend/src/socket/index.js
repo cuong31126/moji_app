@@ -3,6 +3,7 @@ import http from "http";
 import express from "express";
 import { socketAuthMiddleware } from "../middlewares/socketMiddleware.js";
 import { getUserConversationsForSocketIO } from "../controllers/conversationController.js";
+import { getAllowedClientOrigins } from "../config/env.js";
 
 const app = express();
 
@@ -10,7 +11,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
     cors: {
-        origin: process.env.CLIENT_URL,
+        origin: getAllowedClientOrigins(),
         credentials: true,
     },
 });

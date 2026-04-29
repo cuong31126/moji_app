@@ -1,6 +1,7 @@
 // @ts-nocheck
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import { getAccessTokenSecret } from "../config/env.js";
 
 // authorization - xác minh user là ai
 export const protectedRoute = (req, res, next) => {
@@ -14,9 +15,15 @@ export const protectedRoute = (req, res, next) => {
         }
 
         // xác nhận token hợp lệ
+        const accessTokenSecret = getAccessTokenSecret();
+
+        if (!accessTokenSecret) {
+            return res.status(500).json({ message: "Missing JWT config" });
+        }
+
         jwt.verify(
             token,
-            process.env.ACCESS_TOKEN_SECRET,
+            accessTokenSecret,
             async (err, decodedUser) => {
                 if (err) {
                     console.error(err);

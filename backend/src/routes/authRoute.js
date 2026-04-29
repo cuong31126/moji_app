@@ -8,10 +8,9 @@ import {
   socialAuthCallback,
 } from "../controllers/authController.js";
 import { isSocialProviderConfigured } from "../config/passport.js";
+import { getClientUrl } from "../config/env.js";
 
 const router = express.Router();
-
-const getClientUrl = () => process.env.CLIENT_URL || "http://localhost:5173";
 
 const socialFailureRedirect = (provider, reason = "failed") =>
   `${getClientUrl()}/signin?socialError=${provider}_${reason}`;

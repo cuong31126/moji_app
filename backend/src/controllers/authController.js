@@ -8,8 +8,7 @@ import {
   toSafeUser,
   verifyRefreshTokenIfConfigured,
 } from "../utils/authHelper.js";
-
-const getClientUrl = () => process.env.CLIENT_URL || "http://localhost:5173";
+import { getClientUrl } from "../config/env.js";
 
 export const signUp = async (req, res) => {
   try {

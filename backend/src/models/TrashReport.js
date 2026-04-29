@@ -90,7 +90,14 @@ const trashReportSchema = new mongoose.Schema(
       },
       coordinates: {
         type: [Number],
-        default: undefined,
+        required: true,
+        validate: {
+          validator: (coordinates) =>
+            Array.isArray(coordinates) &&
+            coordinates.length === 2 &&
+            coordinates.every(Number.isFinite),
+          message: "Location coordinates must be [longitude, latitude]",
+        },
       },
       lat: {
         type: Number,
@@ -138,10 +145,7 @@ const trashReportSchema = new mongoose.Schema(
   }
 );
 
-trashReportSchema.index(
-  { location: "2dsphere" },
-  { partialFilterExpression: { "location.coordinates": { $exists: true } } }
-);
+trashReportSchema.index({ location: "2dsphere" });
 trashReportSchema.index({ status: 1, createdAt: -1 });
 
 const TrashReport = mongoose.model("TrashReport", trashReportSchema);

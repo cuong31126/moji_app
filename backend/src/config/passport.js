@@ -3,11 +3,13 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { Strategy as GitHubStrategy } from "passport-github2";
 import { Strategy as FacebookStrategy } from "passport-facebook";
 import { findOrCreateSocialUser } from "../utils/socialAuth.js";
+import {
+  getAccessTokenSecret,
+  getOAuthCallbackUrl,
+  getRefreshTokenSecret,
+} from "./env.js";
 
 const configuredProviders = new Set();
-
-const getServerUrl = () =>
-  process.env.SERVER_URL || `http://localhost:${process.env.PORT || 5001}`;
 
 const createVerifyCallback = (provider) => {
   return async (_accessToken, _refreshToken, profile, done) => {
@@ -21,7 +23,6 @@ const createVerifyCallback = (provider) => {
 };
 
 export const configurePassport = () => {
-  const serverUrl = getServerUrl();
   const facebookClientId =
     process.env.FACEBOOK_APP_ID || process.env.FACEBOOK_CLIENT_ID;
   const facebookClientSecret =
@@ -33,9 +34,7 @@ export const configurePassport = () => {
         {
           clientID: process.env.GOOGLE_CLIENT_ID,
           clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-          callbackURL:
-            process.env.GOOGLE_CALLBACK_URL ||
-            `${serverUrl}/api/auth/google/callback`,
+          callbackURL: getOAuthCallbackUrl("google"),
         },
         createVerifyCallback("google")
       )
@@ -49,9 +48,7 @@ export const configurePassport = () => {
         {
           clientID: process.env.GITHUB_CLIENT_ID,
           clientSecret: process.env.GITHUB_CLIENT_SECRET,
-          callbackURL:
-            process.env.GITHUB_CALLBACK_URL ||
-            `${serverUrl}/api/auth/github/callback`,
+          callbackURL: getOAuthCallbackUrl("github"),
           scope: ["user:email"],
         },
         createVerifyCallback("github")
@@ -66,9 +63,7 @@ export const configurePassport = () => {
         {
           clientID: facebookClientId,
           clientSecret: facebookClientSecret,
-          callbackURL:
-            process.env.FACEBOOK_CALLBACK_URL ||
-            `${serverUrl}/api/auth/facebook/callback`,
+          callbackURL: getOAuthCallbackUrl("facebook"),
           profileFields: ["id", "displayName", "photos", "email"],
         },
         createVerifyCallback("facebook")
@@ -77,13 +72,15 @@ export const configurePassport = () => {
     configuredProviders.add("facebook");
   }
 
-  if (!process.env.ACCESS_TOKEN_SECRET) {
-    console.warn("[auth] Missing ACCESS_TOKEN_SECRET. Login will fail until it is set.");
+  if (!getAccessTokenSecret()) {
+    console.warn(
+      "[auth] Missing JWT_ACCESS_SECRET or ACCESS_TOKEN_SECRET. Login will fail until it is set."
+    );
   }
 
-  if (!process.env.REFRESH_TOKEN_SECRET) {
+  if (!getRefreshTokenSecret()) {
     console.warn(
-      "[auth] REFRESH_TOKEN_SECRET is not set. Current refresh tokens are opaque Session tokens, so this is optional for now."
+      "[auth] JWT_REFRESH_SECRET or REFRESH_TOKEN_SECRET is not set. Current refresh tokens are opaque Session tokens, so this is optional for now."
     );
   }
 };

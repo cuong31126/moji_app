@@ -1,6 +1,10 @@
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import Session from "../models/Session.js";
+import {
+  getAccessTokenSecret,
+  getRefreshTokenSecret,
+} from "../config/env.js";
 
 export const ACCESS_TOKEN_TTL = "30m";
 export const REFRESH_TOKEN_TTL = 14 * 24 * 60 * 60 * 1000;
@@ -21,11 +25,13 @@ export const getClearRefreshCookieOptions = () => {
 };
 
 export const createAccessToken = (userId) => {
-  if (!process.env.ACCESS_TOKEN_SECRET) {
-    throw new Error("Missing ACCESS_TOKEN_SECRET");
+  const accessTokenSecret = getAccessTokenSecret();
+
+  if (!accessTokenSecret) {
+    throw new Error("Missing JWT_ACCESS_SECRET or ACCESS_TOKEN_SECRET");
   }
 
-  return jwt.sign({ userId }, process.env.ACCESS_TOKEN_SECRET, {
+  return jwt.sign({ userId }, accessTokenSecret, {
     expiresIn: ACCESS_TOKEN_TTL,
   });
 };
@@ -33,21 +39,25 @@ export const createAccessToken = (userId) => {
 export const createRefreshToken = (userId) => {
   const tokenId = crypto.randomBytes(32).toString("hex");
 
-  if (!process.env.REFRESH_TOKEN_SECRET) {
+  const refreshTokenSecret = getRefreshTokenSecret();
+
+  if (!refreshTokenSecret) {
     return tokenId;
   }
 
-  return jwt.sign({ userId, tokenId }, process.env.REFRESH_TOKEN_SECRET, {
+  return jwt.sign({ userId, tokenId }, refreshTokenSecret, {
     expiresIn: "14d",
   });
 };
 
 export const verifyRefreshTokenIfConfigured = (refreshToken) => {
-  if (!process.env.REFRESH_TOKEN_SECRET) {
+  const refreshTokenSecret = getRefreshTokenSecret();
+
+  if (!refreshTokenSecret) {
     return null;
   }
 
-  return jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+  return jwt.verify(refreshToken, refreshTokenSecret);
 };
 
 export const toSafeUser = (user) => {

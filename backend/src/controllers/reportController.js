@@ -81,6 +81,10 @@ const getDistanceMeters = (from, to) => {
   return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
+const isMissingGeoIndexError = (error) =>
+  error?.message?.includes("unable to find index for $geoNear query") ||
+  error?.codeName === "IndexNotFound";
+
 const formatConversation = (conversation) => {
   const obj = conversation.toObject ? conversation.toObject() : conversation;
   const participants = (obj.participants || []).map((p) => ({
@@ -206,6 +210,8 @@ export const getReports = async (req, res) => {
     const userLat = Number(lat);
     const userLng = Number(lng);
     const hasUserLocation = Number.isFinite(userLat) && Number.isFinite(userLng);
+    const limitNumber = Math.min(Number(limit) || 100, 200);
+    const maxDistanceMeters = Math.min(Number(maxDistance) || 50000, 200000);
 
     if (status && status !== "ALL") {
       query.status = status;
@@ -218,18 +224,40 @@ export const getReports = async (req, res) => {
             type: "Point",
             coordinates: [userLng, userLat],
           },
-          $maxDistance: Math.min(Number(maxDistance) || 50000, 200000),
+          $maxDistance: maxDistanceMeters,
         },
       };
     }
 
-    let reportQuery = TrashReport.find(query).limit(Math.min(Number(limit) || 100, 200));
+    let reportQuery = TrashReport.find(query).limit(limitNumber);
 
     if (!hasUserLocation) {
       reportQuery = reportQuery.sort({ createdAt: -1 });
     }
 
-    let reports = await reportQuery.populate(reportPopulate).lean();
+    let reports;
+
+    try {
+      reports = await reportQuery.populate(reportPopulate).lean();
+    } catch (error) {
+      if (!hasUserLocation || !isMissingGeoIndexError(error)) {
+        throw error;
+      }
+
+      console.warn(
+        "[trash-reports] Missing 2dsphere index on location; falling back to in-memory distance sort. Run TrashReport.syncIndexes() or createIndex({ location: '2dsphere' }).",
+        error.message
+      );
+
+      const fallbackQuery = { ...query };
+      delete fallbackQuery.location;
+
+      reports = await TrashReport.find(fallbackQuery)
+        .sort({ createdAt: -1 })
+        .limit(1000)
+        .populate(reportPopulate)
+        .lean();
+    }
 
     if (hasUserLocation) {
       const from = { lat: userLat, lng: userLng };
@@ -240,7 +268,10 @@ export const getReports = async (req, res) => {
             getDistanceMeters(from, getReportPosition(report) || from)
           ),
         }))
+        .filter((report) => report.distanceMeters <= maxDistanceMeters)
         .sort((a, b) => a.distanceMeters - b.distanceMeters);
+
+      reports = reports.slice(0, limitNumber);
     }
 
     return res.status(200).json({ reports });

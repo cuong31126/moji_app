@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import { getAccessTokenSecret } from "../config/env.js";
 
 export const socketAuthMiddleware = async (socket, next) => {
   try {
@@ -8,7 +9,13 @@ export const socketAuthMiddleware = async (socket, next) => {
       return next(new Error("Unauthorized - Token không tồn tại"));
     }
 
-    const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+    const accessTokenSecret = getAccessTokenSecret();
+
+    if (!accessTokenSecret) {
+      return next(new Error("Server JWT config is missing"));
+    }
+
+    const decoded = jwt.verify(token, accessTokenSecret);
     if (!decoded) {
       return next(new Error("Unauthorized - Token không hợp lệ hoặc đã hết hạn"));
     }
