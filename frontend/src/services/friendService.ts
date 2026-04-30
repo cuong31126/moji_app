@@ -1,4 +1,5 @@
 import api from "@/lib/axios";
+import type { User } from "@/types/user";
 import axios from "axios";
 
 const getApiErrorMessage = (error: unknown, fallback: string) => {
@@ -15,13 +16,23 @@ const throwFriendError = (error: unknown, fallback: string): never => {
 };
 
 export const friendService = {
-  async searchByUsername(username: string) {
+  async searchByUsername(username: string): Promise<User | null> {
     try {
       const query = encodeURIComponent(username.trim());
       const res = await api.get(`/users/search?username=${query}`);
       return res.data.user;
     } catch (error) {
-      throwFriendError(error, "Không tìm được người dùng");
+      return throwFriendError(error, "Không tìm được người dùng");
+    }
+  },
+
+  async searchUsers(keyword: string): Promise<User[]> {
+    try {
+      const query = encodeURIComponent(keyword.trim());
+      const res = await api.get(`/users/search?q=${query}`);
+      return res.data.users ?? [];
+    } catch (error) {
+      return throwFriendError(error, "Không tìm được người dùng");
     }
   },
 

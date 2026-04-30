@@ -915,7 +915,7 @@ const EcoMapPage = () => {
         center={[DEFAULT_CENTER.lat, DEFAULT_CENTER.lng]}
         zoom={13}
         zoomControl={false}
-        className="h-full w-full"
+        className="z-0 h-full w-full"
       >
         <TileLayer
           key={mapStyle}

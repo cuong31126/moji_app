@@ -94,6 +94,7 @@ export interface FriendState {
   receivedList: FriendRequest[];
   sentList: FriendRequest[];
   searchByUsername: (username: string) => Promise<User | null>;
+  searchUsers: (keyword: string) => Promise<User[]>;
   addFriend: (to: string, message?: string) => Promise<string>;
   getAllFriendRequests: () => Promise<void>;
   acceptRequest: (requestId: string) => Promise<void>;

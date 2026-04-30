@@ -20,6 +20,18 @@ export const useFriendStore = create<FriendState>((set, get) => ({
     }
   },
 
+  searchUsers: async (keyword) => {
+    try {
+      set({ loading: true });
+      return await friendService.searchUsers(keyword);
+    } catch (error) {
+      console.error("Error while searching users", error);
+      throw error;
+    } finally {
+      set({ loading: false });
+    }
+  },
+
   addFriend: async (to, message) => {
     try {
       set({ loading: true });

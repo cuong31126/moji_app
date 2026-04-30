@@ -20,6 +20,7 @@ import { useNavigate } from "react-router";
 import type { TrashReportStatus } from "@/types/report";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useChatStore } from "@/stores/useChatStore";
+import UserProfileDialog from "../profile/UserProfileDialog";
 
 const REACTION_OPTIONS = ["👍", "❤️", "😂", "😮", "😢"];
 
@@ -50,6 +51,7 @@ const MessageItem = ({
   const [isRevoking, setIsRevoking] = useState(false);
   const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
   const [reacting, setReacting] = useState(false);
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
 
   const prev = index + 1 < messages.length ? messages[index + 1] : undefined;
 
@@ -168,11 +170,18 @@ const MessageItem = ({
         {!message.isOwn && (
           <div className="w-8">
             {isGroupBreak && (
-              <UserAvatar
-                type="chat"
-                name={participant?.displayName ?? "Moji"}
-                avatarUrl={participant?.avatarUrl ?? undefined}
-              />
+              <button
+                type="button"
+                className="block rounded-full outline-none ring-ring transition hover:scale-105 focus-visible:ring-2"
+                aria-label={`Xem thông tin ${participant?.displayName ?? "Moji"}`}
+                onClick={() => participant?._id && setProfileUserId(participant._id)}
+              >
+                <UserAvatar
+                  type="chat"
+                  name={participant?.displayName ?? "Moji"}
+                  avatarUrl={participant?.avatarUrl ?? undefined}
+                />
+              </button>
             )}
           </div>
         )}
@@ -393,6 +402,12 @@ const MessageItem = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <UserProfileDialog
+        open={Boolean(profileUserId)}
+        onOpenChange={(open) => !open && setProfileUserId(null)}
+        userId={profileUserId}
+      />
     </>
   );
 };
