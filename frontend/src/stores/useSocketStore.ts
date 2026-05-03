@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { io, type Socket } from "socket.io-client";
 import type { SocketState } from "@/types/store";
+import { toast } from "sonner";
 
 const baseURL = import.meta.env.VITE_SOCKET_URL;
 
@@ -103,6 +104,50 @@ export const useSocketStore = create<SocketState>((set, get) => ({
             messageId,
             reactions
           );
+        })();
+      });
+
+      socket.on("group-invite:created", () => {
+        void (async () => {
+          toast.info("Có lời mời vào nhóm chat");
+          (await getChatState()).fetchGroupInvites();
+        })();
+      });
+
+      socket.on("group-invite:needs_approval", () => {
+        void (async () => {
+          toast.info("Có lời mời nhóm đang chờ admin duyệt");
+          (await getChatState()).fetchGroupInvites();
+        })();
+      });
+
+      socket.on("group-invite:updated", () => {
+        void (async () => {
+          (await getChatState()).fetchGroupInvites();
+        })();
+      });
+
+      socket.on("group-invite:approved", ({ conversation }) => {
+        void (async () => {
+          const chatState = await getChatState();
+          if (conversation) {
+            chatState.addConvo(conversation);
+            socket.emit("join-conversation", conversation._id);
+          }
+          chatState.fetchGroupInvites();
+          toast.success("Lời mời nhóm đã được duyệt");
+        })();
+      });
+
+      socket.on("conversation:updated", (conversation) => {
+        void (async () => {
+          (await getChatState()).updateConversation(conversation);
+        })();
+      });
+
+      socket.on("conversation:removed", ({ conversationId }) => {
+        void (async () => {
+          (await getChatState()).removeConversation(conversationId);
         })();
       });
 

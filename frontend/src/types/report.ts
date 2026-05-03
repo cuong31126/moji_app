@@ -43,6 +43,7 @@ export interface TrashReport {
   verifications: TrashUserAction[];
   cleanup?: TrashCleanup;
   cleanupConfirmations: TrashUserAction[];
+  cleanedAt?: string | null;
   conversationId?: string | null;
   distanceMeters?: number;
   createdAt: string;

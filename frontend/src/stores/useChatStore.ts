@@ -17,6 +17,8 @@ export const useChatStore = create<ChatState>()(
       convoLoading: false, // convo loading
       messageLoading: false,
       loading: false,
+      groupInvites: [],
+      adminGroupInvites: [],
 
       setActiveConversation: (id) => set({ activeConversationId: id }),
       reset: () => {
@@ -26,6 +28,8 @@ export const useChatStore = create<ChatState>()(
           activeConversationId: null,
           convoLoading: false,
           messageLoading: false,
+          groupInvites: [],
+          adminGroupInvites: [],
         });
       },
       fetchConversations: async () => {
@@ -234,6 +238,134 @@ export const useChatStore = create<ChatState>()(
           ),
         }));
       },
+      removeConversation: (conversationId) => {
+        set((state) => {
+          const nextMessages = { ...state.messages };
+          delete nextMessages[conversationId];
+
+          return {
+            conversations: state.conversations.filter(
+              (conversation) => conversation._id !== conversationId
+            ),
+            messages: nextMessages,
+            activeConversationId:
+              state.activeConversationId === conversationId
+                ? null
+                : state.activeConversationId,
+          };
+        });
+      },
+      uploadGroupAvatar: async (conversationId, file) => {
+        try {
+          set({ loading: true });
+          const formData = new FormData();
+          formData.append("file", file);
+
+          const result = await chatService.uploadGroupAvatar(
+            conversationId,
+            formData
+          );
+
+          get().updateConversation(result.conversation);
+        } catch (error) {
+          console.error("Lỗi xảy ra khi cập nhật ảnh nhóm", error);
+          throw error;
+        } finally {
+          set({ loading: false });
+        }
+      },
+      updateGroupInfo: async (conversationId, name) => {
+        try {
+          set({ loading: true });
+          const result = await chatService.updateGroupInfo(conversationId, name);
+          get().updateConversation(result.conversation);
+        } catch (error) {
+          console.error("Lỗi xảy ra khi cập nhật thông tin nhóm", error);
+          throw error;
+        } finally {
+          set({ loading: false });
+        }
+      },
+      inviteGroupMembers: async (conversationId, friendIds) => {
+        try {
+          set({ loading: true });
+          const result = await chatService.inviteGroupMembers(
+            conversationId,
+            friendIds
+          );
+
+          get().updateConversation(result.conversation);
+          await get().fetchGroupInvites();
+
+          return result.invitedIds;
+        } catch (error) {
+          console.error("Lỗi xảy ra khi mời thành viên vào nhóm", error);
+          throw error;
+        } finally {
+          set({ loading: false });
+        }
+      },
+      updateGroupMemberRole: async (conversationId, memberId, role) => {
+        try {
+          set({ loading: true });
+          const result = await chatService.updateGroupMemberRole(
+            conversationId,
+            memberId,
+            role
+          );
+          get().updateConversation(result.conversation);
+        } catch (error) {
+          console.error("Lỗi xảy ra khi phân quyền thành viên nhóm", error);
+          throw error;
+        } finally {
+          set({ loading: false });
+        }
+      },
+      removeGroupMember: async (conversationId, memberId) => {
+        try {
+          set({ loading: true });
+          const result = await chatService.removeGroupMember(
+            conversationId,
+            memberId
+          );
+          get().updateConversation(result.conversation);
+          await get().fetchGroupInvites();
+        } catch (error) {
+          console.error("Lỗi xảy ra khi xóa thành viên khỏi nhóm", error);
+          throw error;
+        } finally {
+          set({ loading: false });
+        }
+      },
+      leaveGroupConversation: async (conversationId) => {
+        try {
+          set({ loading: true });
+          const result = await chatService.leaveGroupConversation(conversationId);
+
+          get().removeConversation(conversationId);
+
+          if (result.conversation) {
+            get().updateConversation(result.conversation);
+          }
+        } catch (error) {
+          console.error("Lỗi xảy ra khi rời nhóm", error);
+          throw error;
+        } finally {
+          set({ loading: false });
+        }
+      },
+      deleteGroupConversation: async (conversationId) => {
+        try {
+          set({ loading: true });
+          await chatService.deleteGroupConversation(conversationId);
+          get().removeConversation(conversationId);
+        } catch (error) {
+          console.error("Lỗi xảy ra khi xóa nhóm", error);
+          throw error;
+        } finally {
+          set({ loading: false });
+        }
+      },
       markAsSeen: async () => {
         try {
           const { user } = await getAuthState();
@@ -301,6 +433,77 @@ export const useChatStore = create<ChatState>()(
           useSocketStore.getState().socket?.emit("join-conversation", conversation._id);
         } catch (error) {
           console.error("Lỗi xảy ra khi gọi createConversation trong store", error);
+        } finally {
+          set({ loading: false });
+        }
+      },
+      fetchGroupInvites: async () => {
+        try {
+          const { incoming, adminApprovals } =
+            await chatService.fetchGroupInvites();
+          set({ groupInvites: incoming, adminGroupInvites: adminApprovals });
+        } catch (error) {
+          console.error("Loi xay ra khi fetch group invites", error);
+        }
+      },
+      acceptGroupInvite: async (inviteId) => {
+        try {
+          set({ loading: true });
+          const result = await chatService.acceptGroupInvite(inviteId);
+
+          if (result.conversation) {
+            get().addConvo(result.conversation);
+            const { useSocketStore } = await import("./useSocketStore");
+            useSocketStore
+              .getState()
+              .socket?.emit("join-conversation", result.conversation._id);
+          }
+
+          await get().fetchGroupInvites();
+        } catch (error) {
+          console.error("Loi xay ra khi accept group invite", error);
+          throw error;
+        } finally {
+          set({ loading: false });
+        }
+      },
+      rejectGroupInvite: async (inviteId) => {
+        try {
+          set({ loading: true });
+          await chatService.rejectGroupInvite(inviteId);
+          await get().fetchGroupInvites();
+        } catch (error) {
+          console.error("Loi xay ra khi reject group invite", error);
+          throw error;
+        } finally {
+          set({ loading: false });
+        }
+      },
+      approveGroupInvite: async (inviteId) => {
+        try {
+          set({ loading: true });
+          const result = await chatService.approveGroupInvite(inviteId);
+
+          if (result.conversation) {
+            get().updateConversation(result.conversation);
+          }
+
+          await get().fetchGroupInvites();
+        } catch (error) {
+          console.error("Loi xay ra khi approve group invite", error);
+          throw error;
+        } finally {
+          set({ loading: false });
+        }
+      },
+      declineGroupInvite: async (inviteId) => {
+        try {
+          set({ loading: true });
+          await chatService.declineGroupInvite(inviteId);
+          await get().fetchGroupInvites();
+        } catch (error) {
+          console.error("Loi xay ra khi decline group invite", error);
+          throw error;
         } finally {
           set({ loading: false });
         }

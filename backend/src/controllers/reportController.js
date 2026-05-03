@@ -1,6 +1,9 @@
 import mongoose from "mongoose";
 import Conversation from "../models/Conversation.js";
 import Friend from "../models/Friend.js";
+import GroupInvite, {
+  GROUP_INVITE_STATUS,
+} from "../models/GroupInvite.js";
 import Message from "../models/Message.js";
 import TrashComment from "../models/TrashComment.js";
 import TrashReport, {
@@ -15,6 +18,7 @@ import { io } from "../socket/index.js";
 
 const REQUIRED_VERIFICATIONS = 2;
 const REQUIRED_CLEAN_CONFIRMATIONS = 2;
+const CLEANED_REPORT_RETENTION_MS = 10 * 24 * 60 * 60 * 1000;
 
 const reportPopulate = [
   { path: "createdBy", select: "_id username displayName avatarUrl" },
@@ -93,6 +97,7 @@ const formatConversation = (conversation) => {
     displayName: p.userId?.displayName,
     avatarUrl: p.userId?.avatarUrl ?? null,
     joinedAt: p.joinedAt,
+    role: p.role || "member",
   }));
 
   return {
@@ -130,19 +135,70 @@ const emitReportUpdated = (report) => {
   io.emit("trash-report-updated", { report });
 };
 
+const ensureAtLeastOneAdmin = (conversation, preferredAdminId) => {
+  if (conversation.type !== "group" || conversation.participants.length === 0) {
+    return;
+  }
+
+  const preferredParticipant = preferredAdminId
+    ? conversation.participants.find(
+        (participant) =>
+          participant.userId.toString() === preferredAdminId.toString()
+      )
+    : null;
+
+  if (preferredParticipant) {
+    preferredParticipant.role = "admin";
+    return;
+  }
+
+  const hasAdmin = conversation.participants.some(
+    (participant) => participant.role === "admin"
+  );
+
+  if (hasAdmin) {
+    return;
+  }
+
+  const earliestMember = [...conversation.participants].sort(
+    (a, b) => new Date(a.joinedAt) - new Date(b.joinedAt)
+  )[0];
+
+  if (earliestMember) {
+    earliestMember.role = "admin";
+  }
+};
+
 const ensureReportConversation = async (report, userId) => {
   let conversation = report.conversationId
     ? await Conversation.findById(report.conversationId)
     : null;
+  const reportCreatorId = report.createdBy || userId;
 
   if (!conversation) {
     const shortTitle = report.title.slice(0, 42);
+    const participants = [
+      {
+        userId: reportCreatorId,
+        role: "admin",
+        joinedAt: new Date(),
+      },
+    ];
+
+    if (reportCreatorId.toString() !== userId.toString()) {
+      participants.push({
+        userId,
+        role: "member",
+        joinedAt: new Date(),
+      });
+    }
+
     conversation = await Conversation.create({
       type: "group",
-      participants: [{ userId }],
+      participants,
       group: {
         name: `Cleanup: ${shortTitle}`,
-        createdBy: userId,
+        createdBy: reportCreatorId,
       },
       lastMessageAt: new Date(),
       unreadCounts: new Map(),
@@ -156,9 +212,15 @@ const ensureReportConversation = async (report, userId) => {
     );
 
     if (!isMember) {
-      conversation.participants.push({ userId });
-      await conversation.save();
+      conversation.participants.push({
+        userId,
+        role: "member",
+        joinedAt: new Date(),
+      });
     }
+
+    ensureAtLeastOneAdmin(conversation, reportCreatorId);
+    await conversation.save();
   }
 
   return conversation;
@@ -206,7 +268,16 @@ const emitConversationToParticipants = async (conversation) => {
 export const getReports = async (req, res) => {
   try {
     const { status, lat, lng, limit = 100, maxDistance = 50000 } = req.query;
-    const query = {};
+    const cleanedCutoff = new Date(Date.now() - CLEANED_REPORT_RETENTION_MS);
+    const queryClauses = [
+      {
+        $or: [
+          { status: { $ne: TRASH_REPORT_STATUS.CLEANED } },
+          { cleanedAt: { $gt: cleanedCutoff } },
+          { cleanedAt: null, updatedAt: { $gt: cleanedCutoff } },
+        ],
+      },
+    ];
     const userLat = Number(lat);
     const userLng = Number(lng);
     const hasUserLocation = Number.isFinite(userLat) && Number.isFinite(userLng);
@@ -214,8 +285,10 @@ export const getReports = async (req, res) => {
     const maxDistanceMeters = Math.min(Number(maxDistance) || 50000, 200000);
 
     if (status && status !== "ALL") {
-      query.status = status;
+      queryClauses.push({ status });
     }
+
+    const query = queryClauses.length === 1 ? queryClauses[0] : { $and: queryClauses };
 
     if (hasUserLocation) {
       query.location = {
@@ -414,6 +487,7 @@ export const cleanupReport = async (req, res) => {
       createdAt: new Date(),
     };
     report.cleanupConfirmations = [];
+    report.cleanedAt = null;
     report.status = TRASH_REPORT_STATUS.CLEANUP_PENDING;
 
     await report.save();
@@ -460,6 +534,7 @@ export const confirmCleanReport = async (req, res) => {
 
     if (report.cleanupConfirmations.length >= REQUIRED_CLEAN_CONFIRMATIONS) {
       report.status = TRASH_REPORT_STATUS.CLEANED;
+      report.cleanedAt = new Date();
       becameCleaned = true;
     }
 
@@ -604,7 +679,7 @@ export const shareReport = async (req, res) => {
 
     await message.populate({
       path: "trashReport",
-      select: "title description status type severity location images",
+      select: "title description status type severity location images cleanedAt",
     });
 
     updateConversationAfterCreateMessage(conversation, message, senderId);
@@ -687,17 +762,48 @@ export const inviteReportChatMembers = async (req, res) => {
     const existingIds = new Set(
       conversation.participants.map((p) => p.userId.toString())
     );
+    const activeInvites = await GroupInvite.find({
+      conversationId: conversation._id,
+      invitee: { $in: allowedFriendIds },
+      status: {
+        $in: [
+          GROUP_INVITE_STATUS.PENDING_USER,
+          GROUP_INVITE_STATUS.PENDING_ADMIN,
+          GROUP_INVITE_STATUS.ACCEPTED,
+          "pending",
+        ],
+      },
+      rejectedAt: null,
+      $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }],
+    }).lean();
+    const activeInviteeIds = new Set(
+      activeInvites.map((invite) => invite.invitee.toString())
+    );
     const invitedIds = [];
 
-    allowedFriendIds.forEach((friendId) => {
-      if (!existingIds.has(friendId)) {
-        conversation.participants.push({ userId: friendId });
+    await Promise.all(
+      allowedFriendIds.map(async (friendId) => {
+        if (existingIds.has(friendId) || activeInviteeIds.has(friendId)) {
+          return;
+        }
+
+        const invite = await GroupInvite.create({
+          conversationId: conversation._id,
+          reportId: report._id,
+          invitedBy: userId,
+          invitee: friendId,
+          message: `${req.user.displayName} moi ban tham gia nhom xu ly diem rac.`,
+        });
+
         invitedIds.push(friendId);
-      }
-    });
+        io.to(friendId).emit("group-invite:created", {
+          inviteId: invite._id,
+          conversationId: conversation._id,
+        });
+      })
+    );
 
     if (invitedIds.length > 0) {
-      await conversation.save();
       await sendReportSystemMessage(
         report,
         userId,

@@ -1,13 +1,31 @@
+import { Ellipsis } from "lucide-react";
+
 import type { Participant } from "@/types/chat";
 import UserAvatar from "./UserAvatar";
-import { Ellipsis } from "lucide-react";
 
 interface GroupChatAvatarProps {
   participants: Participant[];
   type: "chat" | "sidebar";
+  name?: string;
+  avatarUrl?: string | null;
 }
 
-const GroupChatAvatar = ({ participants, type }: GroupChatAvatarProps) => {
+const GroupChatAvatar = ({
+  participants,
+  type,
+  name,
+  avatarUrl,
+}: GroupChatAvatarProps) => {
+  if (avatarUrl) {
+    return (
+      <UserAvatar
+        type={type}
+        name={name || "Nhóm"}
+        avatarUrl={avatarUrl}
+      />
+    );
+  }
+
   const avatars = [];
   const limit = Math.min(participants.length, 4);
 
@@ -15,7 +33,7 @@ const GroupChatAvatar = ({ participants, type }: GroupChatAvatarProps) => {
     const member = participants[i];
     avatars.push(
       <UserAvatar
-        key={i}
+        key={member._id}
         type={type}
         name={member.displayName}
         avatarUrl={member.avatarUrl ?? undefined}
@@ -24,12 +42,11 @@ const GroupChatAvatar = ({ participants, type }: GroupChatAvatarProps) => {
   }
 
   return (
-    <div className="relative flex -space-x-2 *:data-[slot=avatar]:ring-background *:data-[slot=avatar]:ring-2">
+    <div className="relative flex -space-x-2 *:data-[slot=avatar]:ring-2 *:data-[slot=avatar]:ring-background">
       {avatars}
 
-      {/* nếu nhiều hơn 4 avatar thì render dấu ... */}
       {participants.length > limit && (
-        <div className="flex items-center z-10 justify-center size-8 rounded-full bg-muted ring-2 ring-background text-muted-foreground">
+        <div className="z-10 flex size-8 items-center justify-center rounded-full bg-muted text-muted-foreground ring-2 ring-background">
           <Ellipsis className="size-4" />
         </div>
       )}

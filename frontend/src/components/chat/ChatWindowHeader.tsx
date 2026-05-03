@@ -1,38 +1,47 @@
-import { useChatStore } from "@/stores/useChatStore";
-import type { Conversation } from "@/types/chat";
-import { SidebarTrigger } from "../ui/sidebar";
-import { useAuthStore } from "@/stores/useAuthStore";
-import { Separator } from "../ui/separator";
-import UserAvatar from "./UserAvatar";
-import StatusBadge from "./StatusBadge";
-import GroupChatAvatar from "./GroupChatAvatar";
-import { useSocketStore } from "@/stores/useSocketStore";
 import { useState } from "react";
-import UserProfileDialog from "../profile/UserProfileDialog";
+import { Info } from "lucide-react";
 
-const ChatWindowHeader = ({ chat }: { chat?: Conversation }) => {
+import { useAuthStore } from "@/stores/useAuthStore";
+import { useChatStore } from "@/stores/useChatStore";
+import { useSocketStore } from "@/stores/useSocketStore";
+import type { Conversation } from "@/types/chat";
+import { Button } from "../ui/button";
+import { Separator } from "../ui/separator";
+import { SidebarTrigger } from "../ui/sidebar";
+import UserProfileDialog from "../profile/UserProfileDialog";
+import GroupChatAvatar from "./GroupChatAvatar";
+import StatusBadge from "./StatusBadge";
+import UserAvatar from "./UserAvatar";
+
+const ChatWindowHeader = ({
+  chat,
+  onOpenDetails,
+}: {
+  chat?: Conversation;
+  onOpenDetails?: () => void;
+}) => {
   const { conversations, activeConversationId } = useChatStore();
   const { user } = useAuthStore();
   const { onlineUsers } = useSocketStore();
   const [profileOpen, setProfileOpen] = useState(false);
 
-  let otherUser;
-
   chat = chat ?? conversations.find((c) => c._id === activeConversationId);
 
   if (!chat) {
     return (
-      <header className="md:hidden sticky top-0 z-10 flex items-center gap-2 px-4 py-2 w-full">
+      <header className="sticky top-0 z-10 flex w-full items-center gap-2 px-4 py-2 md:hidden">
         <SidebarTrigger className="-ml-1 text-foreground" />
       </header>
     );
   }
 
-  if (chat.type === "direct") {
-    const otherUsers = chat.participants.filter((p) => p._id !== user?._id);
-    otherUser = otherUsers.length > 0 ? otherUsers[0] : null;
+  const otherUser =
+    chat.type === "direct"
+      ? chat.participants.find((participant) => participant._id !== user?._id)
+      : null;
 
-    if (!user || !otherUser) return;
+  if (chat.type === "direct" && (!user || !otherUser)) {
+    return null;
   }
 
   return (
@@ -45,14 +54,16 @@ const ChatWindowHeader = ({ chat }: { chat?: Conversation }) => {
             className="mr-2 data-[orientation=vertical]:h-4"
           />
 
-          <div className="flex w-full items-center gap-3 p-2">
+          <div className="flex min-w-0 flex-1 items-center gap-3 p-2">
             <div className="relative">
               {chat.type === "direct" ? (
                 <>
                   <button
                     type="button"
                     className="block rounded-full outline-none ring-ring transition hover:scale-105 focus-visible:ring-2"
-                    aria-label={`Xem thông tin ${otherUser?.displayName || "Moji"}`}
+                    aria-label={`Xem thông tin ${
+                      otherUser?.displayName || "Moji"
+                    }`}
                     onClick={() => setProfileOpen(true)}
                   >
                     <UserAvatar
@@ -73,14 +84,28 @@ const ChatWindowHeader = ({ chat }: { chat?: Conversation }) => {
                 <GroupChatAvatar
                   participants={chat.participants}
                   type="sidebar"
+                  name={chat.group?.name}
+                  avatarUrl={chat.group?.avatarUrl}
                 />
               )}
             </div>
 
-            <h2 className="font-semibold text-foreground">
+            <h2 className="truncate font-semibold text-foreground">
               {chat.type === "direct" ? otherUser?.displayName : chat.group?.name}
             </h2>
           </div>
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="shrink-0 rounded-full"
+            onClick={onOpenDetails}
+            title="Chi tiết chat"
+          >
+            <Info className="size-4" />
+            <span className="hidden sm:inline">Chi tiết</span>
+          </Button>
         </div>
       </header>
 

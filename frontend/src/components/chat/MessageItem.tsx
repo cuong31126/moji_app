@@ -209,7 +209,7 @@ const MessageItem = ({
             <div
               className={cn(
                 "relative",
-                reactionSummary.length > 0 && "mb-3"
+                (canReact || reactionSummary.length > 0) && "mb-5"
               )}
             >
               {canReact && (
@@ -224,7 +224,14 @@ const MessageItem = ({
                       size="icon"
                       title="Reaction"
                       className={cn(
-                        "absolute -right-3 -top-3 z-20 size-7 rounded-full border border-border/60 bg-background shadow-sm opacity-100 transition-opacity hover:bg-accent md:opacity-0 md:group-hover:opacity-100",
+                        "absolute -bottom-3 z-20 size-7 rounded-full border border-border/60 bg-background shadow-sm opacity-100 transition-opacity hover:bg-accent md:opacity-0 md:group-hover:opacity-100",
+                        message.isOwn
+                          ? reactionSummary.length > 0
+                            ? "-left-10"
+                            : "-left-3"
+                          : reactionSummary.length > 0
+                          ? "-right-10"
+                          : "-right-3",
                         reactionPickerOpen && "opacity-100"
                       )}
                     >
@@ -233,7 +240,7 @@ const MessageItem = ({
                   </PopoverTrigger>
                   <PopoverContent
                     side="top"
-                    align="end"
+                    align={message.isOwn ? "start" : "end"}
                     className="flex w-auto gap-1 rounded-full border-border/70 bg-background p-1 shadow-lg"
                   >
                     {REACTION_OPTIONS.map((emoji) => (
@@ -338,7 +345,12 @@ const MessageItem = ({
             </Card>
 
               {reactionSummary.length > 0 && (
-                <div className="absolute -bottom-3 right-2 z-10 inline-flex h-6 items-center gap-0.5 rounded-full border border-border/60 bg-background px-1.5 text-xs shadow-sm">
+                <div
+                  className={cn(
+                    "absolute -bottom-3 z-10 inline-flex h-6 items-center gap-0.5 rounded-full border border-border/60 bg-background px-1.5 text-xs shadow-sm",
+                    message.isOwn ? "left-2" : "right-2"
+                  )}
+                >
                   {reactionSummary.slice(0, 3).map((reaction) => (
                     <span
                       key={reaction.emoji}

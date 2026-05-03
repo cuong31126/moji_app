@@ -1,10 +1,13 @@
 import type { TrashReport } from "./report";
+import type { User } from "./user";
 
 export interface Participant {
   _id: string;
+  username?: string;
   displayName: string;
   avatarUrl?: string | null;
   joinedAt: string;
+  role?: "admin" | "member";
 }
 
 export interface SeenUser {
@@ -16,6 +19,7 @@ export interface SeenUser {
 export interface Group {
   name: string;
   createdBy: string;
+  avatarUrl?: string | null;
 }
 
 export interface LastMessage {
@@ -51,6 +55,31 @@ export interface Conversation {
 
 export interface ConversationResponse {
   conversations: Conversation[];
+}
+
+export interface GroupInvite {
+  _id: string;
+  conversationId: string;
+  conversation?: Conversation | null;
+  reportId?: {
+    _id: string;
+    title: string;
+    status: string;
+  } | string | null;
+  invitedBy: User;
+  invitee: User;
+  status: "pending_user" | "pending_admin" | "accepted" | "rejected" | "pending";
+  acceptedAt?: string | null;
+  approvedAt?: string | null;
+  rejectedAt?: string | null;
+  message?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GroupInviteResponse {
+  incoming: GroupInvite[];
+  adminApprovals: GroupInvite[];
 }
 
 export interface Message {

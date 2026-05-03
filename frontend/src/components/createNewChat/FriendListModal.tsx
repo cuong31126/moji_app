@@ -14,7 +14,7 @@ const FriendListModal = () => {
   };
 
   return (
-    <DialogContent className="glass max-w-md">
+    <DialogContent className="glass max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-md overflow-hidden p-4 sm:p-6">
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2 text-xl capitalize">
           <MessageCircleMore className="size-5" />
@@ -28,14 +28,14 @@ const FriendListModal = () => {
           danh sách bạn bè
         </h1>
 
-        <div className="beautiful-scrollbar max-h-60 space-y-2 overflow-y-auto pr-1">
+        <div className="beautiful-scrollbar max-h-60 space-y-2 overflow-y-auto overflow-x-hidden pr-1">
           {friends.map((friend) => (
             <Card
               onClick={() => handleAddConversation(friend._id)}
               key={friend._id}
-              className="p-3 cursor-pointer transition-smooth hover:shadow-soft glass hover:bg-muted/30 group/friendCard"
+              className="max-w-full cursor-pointer overflow-hidden p-3 transition-smooth hover:shadow-soft glass hover:bg-muted/30 group/friendCard"
             >
-              <div className="flex items-center gap-3">
+              <div className="flex min-w-0 items-center gap-3">
                 {/* avatar */}
                 <div className="relative">
                   <UserAvatar
@@ -50,7 +50,7 @@ const FriendListModal = () => {
                   <h2 className="font-semibold text-sm truncate">
                     {friend.displayName}
                   </h2>
-                  <span className="text-sm text-muted-foreground">
+                  <span className="truncate text-sm text-muted-foreground">
                     @{friend.username}
                   </span>
                 </div>

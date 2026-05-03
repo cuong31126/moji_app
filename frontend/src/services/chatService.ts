@@ -1,5 +1,11 @@
 import api from "@/lib/axios";
-import type { ConversationResponse, Message } from "@/types/chat";
+import type {
+  Conversation,
+  ConversationResponse,
+  GroupInvite,
+  GroupInviteResponse,
+  Message,
+} from "@/types/chat";
 
 interface FetchMessageProps {
   messages: Message[];
@@ -59,6 +65,82 @@ export const chatService = {
     return res.data.imgUrl as string;
   },
 
+  async uploadGroupAvatar(
+    conversationId: string,
+    formData: FormData
+  ): Promise<{ conversation: Conversation }> {
+    const res = await api.patch(
+      `/conversations/${conversationId}/group-avatar`,
+      formData,
+      {
+        headers: { "Content-Type": "multipart/form-data" },
+      }
+    );
+
+    return res.data;
+  },
+
+  async updateGroupInfo(
+    conversationId: string,
+    name: string
+  ): Promise<{ conversation: Conversation }> {
+    const res = await api.patch(`/conversations/${conversationId}/group`, {
+      name,
+    });
+
+    return res.data;
+  },
+
+  async inviteGroupMembers(
+    conversationId: string,
+    friendIds: string[]
+  ): Promise<{ conversation: Conversation; invitedIds: string[] }> {
+    const res = await api.post(
+      `/conversations/${conversationId}/group-invites`,
+      { friendIds }
+    );
+
+    return res.data;
+  },
+
+  async updateGroupMemberRole(
+    conversationId: string,
+    memberId: string,
+    role: "admin" | "member"
+  ): Promise<{ conversation: Conversation }> {
+    const res = await api.patch(
+      `/conversations/${conversationId}/members/${memberId}/role`,
+      { role }
+    );
+
+    return res.data;
+  },
+
+  async removeGroupMember(
+    conversationId: string,
+    memberId: string
+  ): Promise<{ conversation: Conversation }> {
+    const res = await api.delete(
+      `/conversations/${conversationId}/members/${memberId}`
+    );
+
+    return res.data;
+  },
+
+  async leaveGroupConversation(
+    conversationId: string
+  ): Promise<{ conversation?: Conversation; conversationId: string }> {
+    const res = await api.post(`/conversations/${conversationId}/leave`);
+    return res.data;
+  },
+
+  async deleteGroupConversation(
+    conversationId: string
+  ): Promise<{ conversationId: string }> {
+    const res = await api.delete(`/conversations/${conversationId}`);
+    return res.data;
+  },
+
   async revokeMessage(messageId: string) {
     const res = await api.patch(`/messages/${messageId}/revoke`);
     return res.data;
@@ -81,5 +163,36 @@ export const chatService = {
   ) {
     const res = await api.post("/conversations", { type, name, memberIds });
     return res.data.conversation;
+  },
+
+  async fetchGroupInvites(): Promise<GroupInviteResponse> {
+    const res = await api.get<GroupInviteResponse>("/group-invites/me");
+    return res.data;
+  },
+
+  async acceptGroupInvite(inviteId: string): Promise<{
+    invite: GroupInvite;
+    conversation?: Conversation | null;
+  }> {
+    const res = await api.post(`/group-invites/${inviteId}/accept`);
+    return res.data;
+  },
+
+  async rejectGroupInvite(inviteId: string): Promise<{ invite: GroupInvite }> {
+    const res = await api.post(`/group-invites/${inviteId}/reject`);
+    return res.data;
+  },
+
+  async approveGroupInvite(inviteId: string): Promise<{
+    invite: GroupInvite;
+    conversation?: Conversation | null;
+  }> {
+    const res = await api.post(`/group-invites/${inviteId}/approve`);
+    return res.data;
+  },
+
+  async declineGroupInvite(inviteId: string): Promise<{ invite: GroupInvite }> {
+    const res = await api.post(`/group-invites/${inviteId}/decline`);
+    return res.data;
   },
 };

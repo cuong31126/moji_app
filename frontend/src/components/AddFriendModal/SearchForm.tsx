@@ -56,7 +56,7 @@ const SearchForm = ({
   return (
     <form
       onSubmit={onSubmit}
-      className="space-y-4"
+      className="max-w-full space-y-4 overflow-hidden"
     >
       <div className="space-y-2">
         <Label
@@ -80,7 +80,7 @@ const SearchForm = ({
         )}
 
         {suggestions.length > 0 && (
-          <div className="beautiful-scrollbar max-h-64 overflow-y-auto rounded-lg border border-border/70 bg-background/95 p-1 shadow-soft">
+          <div className="beautiful-scrollbar max-h-64 max-w-full overflow-y-auto overflow-x-hidden rounded-lg border border-border/70 bg-background/95 p-1 shadow-soft">
             {suggestions.map((user) => {
               const relationship = user.relationshipStatus ?? "none";
 
@@ -88,7 +88,7 @@ const SearchForm = ({
                 <button
                   key={user._id}
                   type="button"
-                  className="flex w-full items-center gap-3 rounded-md p-2 text-left transition hover:bg-muted"
+                  className="flex w-full min-w-0 items-center gap-3 rounded-md p-2 text-left transition hover:bg-muted"
                   onClick={() => onSelectSuggestion(user)}
                 >
                   <UserAvatar
@@ -107,7 +107,7 @@ const SearchForm = ({
                   </span>
                   <Badge
                     variant="outline"
-                    className={relationshipClasses[relationship]}
+                    className={`${relationshipClasses[relationship]} max-w-[6.5rem] shrink-0 truncate`}
                   >
                     {relationshipLabels[relationship]}
                   </Badge>
@@ -124,7 +124,7 @@ const SearchForm = ({
         )}
       </div>
 
-      <DialogFooter>
+      <DialogFooter className="sm:gap-2">
         <DialogClose asChild>
           <Button
             type="button"

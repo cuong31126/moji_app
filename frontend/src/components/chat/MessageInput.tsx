@@ -3,7 +3,7 @@ import type { Conversation } from "@/types/chat";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../ui/button";
 import { ImagePlus, Loader2, Send, Sparkles, X } from "lucide-react";
-import { Input } from "../ui/input";
+import { Textarea } from "../ui/textarea";
 import EmojiPicker from "./EmojiPicker";
 import { useChatStore } from "@/stores/useChatStore";
 import { toast } from "sonner";
@@ -22,7 +22,7 @@ const MessageInput = ({ selectedConvo }: { selectedConvo: Conversation }) => {
   const [suggestingEmojis, setSuggestingEmojis] = useState(false);
   const [emojiError, setEmojiError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const messageInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const previewUrl = useMemo(
     () => (imageFile ? URL.createObjectURL(imageFile) : null),
@@ -67,9 +67,9 @@ const MessageInput = ({ selectedConvo }: { selectedConvo: Conversation }) => {
   };
 
   const focusMessageInput = () => {
-    requestAnimationFrame(() => {
-      messageInputRef.current?.focus();
-    });
+    window.setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 0);
   };
 
   const suggestEmojis = async () => {
@@ -139,10 +139,12 @@ const MessageInput = ({ selectedConvo }: { selectedConvo: Conversation }) => {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      sendMessage();
+      if (!sending) {
+        void sendMessage();
+      }
     }
   };
 
@@ -229,14 +231,15 @@ const MessageInput = ({ selectedConvo }: { selectedConvo: Conversation }) => {
         </Button>
 
         <div className="relative flex-1">
-          <Input
-            ref={messageInputRef}
+          <Textarea
+            ref={textareaRef}
             onKeyDown={handleKeyDown}
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder="Soạn tin nhắn..."
-            disabled={sending}
-            className="h-9 resize-none border-border/50 bg-white pr-28 transition-smooth focus:border-primary/50"
+            readOnly={sending}
+            rows={1}
+            className="max-h-32 min-h-10 resize-none overflow-y-auto border-border/50 bg-white py-2 pr-28 transition-smooth focus:border-primary/50"
           />
           <div className="absolute right-2 top-1/2 flex -translate-y-1/2 transform items-center gap-1">
             <Button
@@ -270,6 +273,7 @@ const MessageInput = ({ selectedConvo }: { selectedConvo: Conversation }) => {
         </div>
 
         <Button
+          type="button"
           onClick={sendMessage}
           className="bg-gradient-chat transition-smooth hover:scale-105 hover:shadow-glow"
           disabled={sending || (!value.trim() && !imageFile)}

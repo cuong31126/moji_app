@@ -134,6 +134,11 @@ const trashReportSchema = new mongoose.Schema(
       type: [userActionSchema],
       default: [],
     },
+    cleanedAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
     conversationId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Conversation",

@@ -141,7 +141,7 @@ const AddFriendModal = () => {
         </div>
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-[425px] border-none">
+      <DialogContent className="max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] overflow-hidden border-none p-4 sm:max-w-[425px] sm:p-6">
         <DialogHeader>
           <DialogTitle>Kết Bạn</DialogTitle>
         </DialogHeader>

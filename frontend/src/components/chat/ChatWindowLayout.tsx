@@ -1,16 +1,18 @@
+import { useEffect, useMemo, useState } from "react";
+import { AlertCircle, Loader2, Sparkles, X } from "lucide-react";
+import { toast } from "sonner";
+
+import { aiService } from "@/services/aiService";
 import { useChatStore } from "@/stores/useChatStore";
+import type { Message } from "@/types/chat";
 import ChatWelcomeScreen from "./ChatWelcomeScreen";
 import { SidebarInset } from "../ui/sidebar";
 import ChatWindowHeader from "./ChatWindowHeader";
 import ChatWindowBody from "./ChatWindowBody";
 import MessageInput from "./MessageInput";
-import { useEffect, useMemo, useState } from "react";
+import ChatDetailsPanel from "./ChatDetailsPanel";
 import ChatWindowSkeleton from "../skeleton/ChatWindowSkeleton";
 import { Button } from "../ui/button";
-import { AlertCircle, Loader2, Sparkles, X } from "lucide-react";
-import { aiService } from "@/services/aiService";
-import { toast } from "sonner";
-import type { Message } from "@/types/chat";
 
 const ChatWindowLayout = () => {
   const {
@@ -24,11 +26,14 @@ const ChatWindowLayout = () => {
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState("");
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const selectedConvo =
     conversations.find((c) => c._id === activeConversationId) ?? null;
-  const currentMessages: Message[] =
-    activeConversationId ? messages[activeConversationId]?.items ?? [] : [];
+  const currentMessages: Message[] = useMemo(
+    () => (activeConversationId ? messages[activeConversationId]?.items ?? [] : []),
+    [activeConversationId, messages]
+  );
   const summarizableMessages = useMemo(
     () =>
       currentMessages
@@ -58,7 +63,7 @@ const ChatWindowLayout = () => {
       try {
         await markAsSeen();
       } catch (error) {
-        console.error("Lỗi khi markSeen", error);
+        console.error("Loi khi markSeen", error);
       }
     };
 
@@ -69,6 +74,7 @@ const ChatWindowLayout = () => {
     setSummary("");
     setSummaryError("");
     setSummaryOpen(false);
+    setDetailsOpen(false);
   }, [activeConversationId]);
 
   const handleSummarizeChat = async () => {
@@ -77,9 +83,9 @@ const ChatWindowLayout = () => {
     }
 
     const payload = summarizableMessages.map((message) => ({
-        senderName: participantNameMap.get(message.senderId) || "Moji user",
-        content: message.content || "",
-      }));
+      senderName: participantNameMap.get(message.senderId) || "Moji user",
+      content: message.content || "",
+    }));
 
     if (payload.length === 0) {
       toast.error("Không có nội dung để tóm tắt");
@@ -114,72 +120,85 @@ const ChatWindowLayout = () => {
   }
 
   return (
-    <SidebarInset className="flex flex-col h-full flex-1 overflow-hidden rounded-sm shadow-md">
-      {/* Header */}
-      <ChatWindowHeader chat={selectedConvo} />
+    <SidebarInset className="h-full flex-1 overflow-hidden rounded-sm shadow-md">
+      <div className="flex min-h-0 flex-1">
+        <section className="flex min-w-0 flex-1 flex-col">
+          <ChatWindowHeader
+            chat={selectedConvo}
+            onOpenDetails={() => setDetailsOpen((current) => !current)}
+          />
 
-      <div className="border-b border-border/60 bg-background px-4 py-2">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 rounded-full"
-              onClick={handleSummarizeChat}
-              disabled={summaryLoading || !canSummarize}
-            >
-              {summaryLoading ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Sparkles className="size-4" />
-              )}
-              {summaryLoading ? "Đang tóm tắt..." : "Tóm tắt chat"}
-            </Button>
-            <span className="text-xs text-muted-foreground">
-              {canSummarize
-                ? `AI sẽ đọc ${Math.min(summarizableCount, 30)} tin gần nhất`
-                : `Cần thêm ${Math.max(10 - summarizableCount, 0)} tin nhắn chữ`}
-            </span>
-          </div>
+          <div className="border-b border-border/60 bg-background px-4 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 rounded-full"
+                  onClick={handleSummarizeChat}
+                  disabled={summaryLoading || !canSummarize}
+                >
+                  {summaryLoading ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="size-4" />
+                  )}
+                  {summaryLoading ? "Đang tóm tắt..." : "Tóm tắt chat"}
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  {canSummarize
+                    ? `AI sẽ đọc ${Math.min(summarizableCount, 30)} tin gần nhất`
+                    : `Cần thêm ${Math.max(
+                        10 - summarizableCount,
+                        0
+                      )} tin nhắn chữ`}
+                </span>
+              </div>
 
-            {summaryOpen && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-8 rounded-full"
-                onClick={() => setSummaryOpen(false)}
-              >
-                <X className="size-4" />
-              </Button>
-            )}
-        </div>
-
-          {summaryOpen && (
-            <div className="mt-2 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm leading-6">
-              {summaryError && (
-                <div className="mb-2 flex items-center gap-2 text-warning">
-                  <AlertCircle className="size-4" />
-                  {summaryError}
-                </div>
-              )}
-              {summaryLoading ? (
-                <p className="text-muted-foreground">Đang tóm tắt...</p>
-              ) : (
-                <p className="whitespace-pre-line">{summary}</p>
+              {summaryOpen && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 rounded-full"
+                  onClick={() => setSummaryOpen(false)}
+                >
+                  <X className="size-4" />
+                </Button>
               )}
             </div>
-          )}
-      </div>
 
-      {/* Body */}
-      <div className="flex-1 overflow-y-auto bg-primary-foreground">
-        <ChatWindowBody />
-      </div>
+            {summaryOpen && (
+              <div className="mt-2 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm leading-6">
+                {summaryError && (
+                  <div className="mb-2 flex items-center gap-2 text-warning">
+                    <AlertCircle className="size-4" />
+                    {summaryError}
+                  </div>
+                )}
+                {summaryLoading ? (
+                  <p className="text-muted-foreground">Đang tóm tắt...</p>
+                ) : (
+                  <p className="whitespace-pre-line">{summary}</p>
+                )}
+              </div>
+            )}
+          </div>
 
-      {/* Footer */}
-      <MessageInput selectedConvo={selectedConvo} />
+          <div className="flex-1 overflow-y-auto bg-primary-foreground">
+            <ChatWindowBody />
+          </div>
+
+          <MessageInput selectedConvo={selectedConvo} />
+        </section>
+
+        <ChatDetailsPanel
+          chat={selectedConvo}
+          open={detailsOpen}
+          onOpenChange={setDetailsOpen}
+        />
+      </div>
     </SidebarInset>
   );
 };

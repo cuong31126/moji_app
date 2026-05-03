@@ -19,15 +19,15 @@ const FriendRequestItem = ({ requestInfo, actions, type }: RequestItemProps) => 
   }
 
   return (
-    <div className="flex items-center justify-between rounded-lg shadow-md border border-primary-foreground p-3">
-      <div className="flex items-center gap-3">
+    <div className="flex min-w-0 flex-col gap-3 rounded-lg border border-primary-foreground p-3 shadow-md sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-center gap-3">
         <UserAvatar
           type="sidebar"
           name={info.displayName}
         />
-        <div>
-          <p className="font-medium">{info.displayName}</p>
-          <p className="text-sm text-muted-foreground">@{info.username}</p>
+        <div className="min-w-0">
+          <p className="truncate font-medium">{info.displayName}</p>
+          <p className="truncate text-sm text-muted-foreground">@{info.username}</p>
         </div>
       </div>
       {actions}

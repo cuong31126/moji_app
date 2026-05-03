@@ -11,6 +11,7 @@ import {
   useMapEvents,
 } from "react-leaflet";
 import {
+  ArrowLeft,
   CheckCircle2,
   Crosshair,
   ImagePlus,
@@ -89,6 +90,7 @@ const DEFAULT_CENTER: LatLngPoint = {
   lat: 10.8505,
   lng: 106.7717,
 };
+const CLEANED_REPORT_RETENTION_MS = 10 * 24 * 60 * 60 * 1000;
 
 const STATUS_META: Record<
   TrashReportStatus,
@@ -219,6 +221,25 @@ const getDistanceMeters = (from: LatLngPoint, to: LatLngPoint) => {
   return Math.round(earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 };
 
+const shouldShowReportOnMap = (report: TrashReport) => {
+  const normalizedStatus = report.status.toLowerCase();
+
+  if (
+    normalizedStatus !== "cleaned" &&
+    normalizedStatus !== "confirmed_clean"
+  ) {
+    return true;
+  }
+
+  const cleanedDate = report.cleanedAt || report.updatedAt;
+
+  if (!cleanedDate) {
+    return true;
+  }
+
+  return Date.now() - new Date(cleanedDate).getTime() < CLEANED_REPORT_RETENTION_MS;
+};
+
 const MapFlyTo = ({ target }: { target: FlyTarget | null }) => {
   const map = useMap();
 
@@ -331,6 +352,12 @@ const EcoMapPage = () => {
   const searchCacheRef = useRef<Record<string, SearchResult[]>>({});
 
   const upsertReport = useCallback((report: TrashReport) => {
+    if (!shouldShowReportOnMap(report)) {
+      setReports((prev) => prev.filter((item) => item._id !== report._id));
+      setSelectedReport((prev) => (prev?._id === report._id ? null : prev));
+      return;
+    }
+
     const reportWithDistance =
       userLocation && report.location
         ? {
@@ -371,7 +398,7 @@ const EcoMapPage = () => {
         lat: userLocation?.lat,
         lng: userLocation?.lng,
       });
-      setReports(nextReports);
+      setReports(nextReports.filter(shouldShowReportOnMap));
     } catch (error) {
       console.error(error);
       toast.error("Không tải được danh sách điểm rác");
@@ -844,8 +871,8 @@ const EcoMapPage = () => {
       setInviteFriendIds([]);
       toast.success(
         invitedIds.length > 0
-          ? `Đã mời ${invitedIds.length} bạn vào nhóm xử lý`
-          : "Những bạn này đã ở trong nhóm xử lý"
+          ? `Đã gửi ${invitedIds.length} lời mời vào nhóm xử lý`
+          : "Những bạn này đã ở trong nhóm hoặc đã có lời mời chờ xử lý"
       );
     } catch (error) {
       console.error(error);
@@ -950,14 +977,14 @@ const EcoMapPage = () => {
       <div className="pointer-events-none absolute inset-x-3 top-3 z-[450] mx-auto flex max-w-3xl flex-col items-center gap-2">
         <form
           onSubmit={handleSearchSubmit}
-          className="pointer-events-auto relative flex w-full max-w-xl items-center gap-2 rounded-full border border-emerald-200/80 bg-background/95 px-3 py-2 shadow-soft backdrop-blur"
+          className="pointer-events-auto relative flex w-full max-w-xl min-w-0 items-center gap-1 rounded-2xl border border-emerald-200/80 bg-background/95 px-3 py-2 shadow-soft backdrop-blur sm:gap-2 sm:rounded-full"
         >
           <Search className="size-4 text-muted-foreground" />
           <Input
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder="Tìm địa điểm"
-            className="h-8 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
+            className="h-8 min-w-0 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
           />
           <Button
             type="button"
@@ -972,14 +999,14 @@ const EcoMapPage = () => {
           <Button
             type="submit"
             size="sm"
-            className="h-8 rounded-full"
+            className="h-8 shrink-0 rounded-full px-3"
             disabled={searching}
           >
             {searching ? <Loader2 className="size-4 animate-spin" /> : "Tìm"}
           </Button>
 
           {searchResults.length > 0 && (
-            <div className="absolute left-0 right-0 top-[calc(100%+8px)] overflow-hidden rounded-xl border border-border bg-background shadow-soft">
+            <div className="absolute left-0 right-0 top-[calc(100%+8px)] max-h-[45vh] overflow-y-auto overflow-x-hidden rounded-xl border border-border bg-background shadow-soft">
               {searchResults.map((result) => (
                 <button
                   key={result.place_id}
@@ -1016,8 +1043,18 @@ const EcoMapPage = () => {
       <Button
         type="button"
         variant="secondary"
+        className="absolute left-3 top-[7rem] z-[450] h-10 rounded-full border border-border/80 bg-background/95 px-3 shadow-soft backdrop-blur md:hidden"
+        onClick={() => navigate("/")}
+      >
+        <ArrowLeft className="size-4" />
+        Quay lại chat
+      </Button>
+
+      <Button
+        type="button"
+        variant="secondary"
         size="icon"
-        className="absolute right-4 top-4 z-[450] size-11 rounded-full border border-border/80 bg-background/95 shadow-soft backdrop-blur"
+        className="absolute right-3 top-[7rem] z-[450] size-11 rounded-full border border-border/80 bg-background/95 shadow-soft backdrop-blur md:right-4 md:top-4"
         onClick={() => setMapStyle(mapStyle === "street" ? "light" : "street")}
         title="Đổi chế độ street/light"
       >
@@ -1025,7 +1062,7 @@ const EcoMapPage = () => {
       </Button>
 
       {loadingReports && (
-        <div className="absolute left-4 top-4 z-[450] flex items-center gap-2 rounded-full border border-border bg-background/95 px-3 py-2 text-sm shadow-soft">
+        <div className="absolute left-1/2 top-[10.25rem] z-[450] flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-background/95 px-3 py-2 text-sm shadow-soft md:left-4 md:top-4 md:translate-x-0">
           <Loader2 className="size-4 animate-spin text-primary" />
           Đang tải
         </div>
@@ -1040,7 +1077,7 @@ const EcoMapPage = () => {
             </div>
             <div className="mx-auto h-8 w-1 rounded-b-full bg-red-500" />
           </div>
-          <div className="absolute bottom-24 left-1/2 z-[470] flex -translate-x-1/2 gap-2 rounded-full border border-border bg-background/95 p-2 shadow-soft backdrop-blur">
+          <div className="absolute bottom-[calc(env(safe-area-inset-bottom)+5rem)] left-1/2 z-[470] flex w-[calc(100%-1.5rem)] max-w-sm -translate-x-1/2 gap-2 rounded-2xl border border-border bg-background/95 p-2 shadow-soft backdrop-blur sm:bottom-24 sm:w-auto sm:rounded-full">
             <Button
               type="button"
               variant="outline"
@@ -1062,7 +1099,7 @@ const EcoMapPage = () => {
         </>
       )}
 
-      <div className="absolute bottom-5 right-4 z-[450] flex flex-col gap-3">
+      <div className="absolute bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] right-3 z-[450] flex flex-col gap-3 sm:bottom-5 sm:right-4">
         <Button
           type="button"
           variant="secondary"
@@ -1082,7 +1119,7 @@ const EcoMapPage = () => {
 
       <Button
         type="button"
-        className="absolute bottom-5 left-1/2 z-[450] h-12 -translate-x-1/2 rounded-full bg-red-500 px-6 text-white shadow-[0_18px_45px_rgba(239,68,68,0.32)] hover:bg-red-600"
+        className="absolute bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-1/2 z-[450] h-12 -translate-x-1/2 rounded-full bg-red-500 px-6 text-white shadow-[0_18px_45px_rgba(239,68,68,0.32)] hover:bg-red-600 sm:bottom-5"
         onClick={startReporting}
       >
         <Trash2 className="size-5" />
@@ -1630,7 +1667,7 @@ const EcoMapPage = () => {
           <DialogHeader>
             <DialogTitle>Mời bạn bè xử lý</DialogTitle>
             <DialogDescription>
-              Bạn bè được mời sẽ thấy nhóm cleanup trong danh sách chat.
+              Bạn bè cần đồng ý lời mời trước khi được thêm vào nhóm cleanup.
             </DialogDescription>
           </DialogHeader>
 
@@ -1698,7 +1735,7 @@ const EcoMapPage = () => {
               ) : (
                 <UserPlus className="size-4" />
               )}
-              Mời vào nhóm
+              Gửi lời mời
             </Button>
           </DialogFooter>
         </DialogContent>

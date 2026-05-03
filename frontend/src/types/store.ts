@@ -1,5 +1,10 @@
 import type { Socket } from "socket.io-client";
-import type { Conversation, Message, MessageReaction } from "./chat";
+import type {
+  Conversation,
+  GroupInvite,
+  Message,
+  MessageReaction,
+} from "./chat";
 import type { Friend, FriendRequest, User } from "./user";
 
 export type ConversationUpdate = Partial<Conversation> & Pick<Conversation, "_id">;
@@ -45,6 +50,8 @@ export interface ChatState {
   convoLoading: boolean;
   messageLoading: boolean;
   loading: boolean;
+  groupInvites: GroupInvite[];
+  adminGroupInvites: GroupInvite[];
   reset: () => void;
 
   setActiveConversation: (id: string | null) => void;
@@ -72,6 +79,21 @@ export interface ChatState {
   revokeMessage: (messageId: string) => Promise<void>;
   // update convo
   updateConversation: (conversation: ConversationUpdate) => void;
+  removeConversation: (conversationId: string) => void;
+  uploadGroupAvatar: (conversationId: string, file: File) => Promise<void>;
+  updateGroupInfo: (conversationId: string, name: string) => Promise<void>;
+  inviteGroupMembers: (
+    conversationId: string,
+    friendIds: string[]
+  ) => Promise<string[]>;
+  updateGroupMemberRole: (
+    conversationId: string,
+    memberId: string,
+    role: "admin" | "member"
+  ) => Promise<void>;
+  removeGroupMember: (conversationId: string, memberId: string) => Promise<void>;
+  leaveGroupConversation: (conversationId: string) => Promise<void>;
+  deleteGroupConversation: (conversationId: string) => Promise<void>;
   markAsSeen: () => Promise<void>;
   addConvo: (convo: Conversation) => void;
   createConversation: (
@@ -79,6 +101,11 @@ export interface ChatState {
     name: string,
     memberIds: string[]
   ) => Promise<void>;
+  fetchGroupInvites: () => Promise<void>;
+  acceptGroupInvite: (inviteId: string) => Promise<void>;
+  rejectGroupInvite: (inviteId: string) => Promise<void>;
+  approveGroupInvite: (inviteId: string) => Promise<void>;
+  declineGroupInvite: (inviteId: string) => Promise<void>;
 }
 
 export interface SocketState {
