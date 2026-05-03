@@ -90,6 +90,8 @@ const DEFAULT_CENTER: LatLngPoint = {
   lat: 10.8505,
   lng: 106.7717,
 };
+const REPORT_LIMIT = 80;
+const REPORT_MAX_DISTANCE_METERS = 50000;
 const CLEANED_REPORT_RETENTION_MS = 10 * 24 * 60 * 60 * 1000;
 
 const STATUS_META: Record<
@@ -240,6 +242,19 @@ const shouldShowReportOnMap = (report: TrashReport) => {
   return Date.now() - new Date(cleanedDate).getTime() < CLEANED_REPORT_RETENTION_MS;
 };
 
+const isAbortError = (error: unknown) => {
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return true;
+  }
+
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    (error as { name?: string }).name === "CanceledError"
+  );
+};
+
 const MapFlyTo = ({ target }: { target: FlyTarget | null }) => {
   const map = useMap();
 
@@ -315,6 +330,7 @@ const EcoMapPage = () => {
   );
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [loadingReports, setLoadingReports] = useState(false);
+  const [initialLocationResolved, setInitialLocationResolved] = useState(false);
   const [locating, setLocating] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -333,6 +349,9 @@ const EcoMapPage = () => {
   const [cleanupDescription, setCleanupDescription] = useState("");
   const [cleanupImages, setCleanupImages] = useState<File[]>([]);
   const [cleaning, setCleaning] = useState(false);
+  const [reportActionLoadingById, setReportActionLoadingById] = useState<
+    Record<string, boolean>
+  >({});
   const [shareOpen, setShareOpen] = useState(false);
   const [shareMode, setShareMode] = useState<"conversation" | "friend">(
     "conversation"
@@ -350,6 +369,24 @@ const EcoMapPage = () => {
   const [searching, setSearching] = useState(false);
   const handledReportIdRef = useRef<string | null>(null);
   const searchCacheRef = useRef<Record<string, SearchResult[]>>({});
+  const searchAbortRef = useRef<AbortController | null>(null);
+  const reportFetchCenter = userLocation ?? DEFAULT_CENTER;
+
+  const setReportActionLoading = useCallback(
+    (reportId: string, isLoading: boolean) => {
+      setReportActionLoadingById((prev) => ({
+        ...prev,
+        [reportId]: isLoading,
+      }));
+    },
+    []
+  );
+
+  useEffect(() => {
+    return () => {
+      searchAbortRef.current?.abort();
+    };
+  }, []);
 
   const upsertReport = useCallback((report: TrashReport) => {
     if (!shouldShowReportOnMap(report)) {
@@ -390,26 +427,84 @@ const EcoMapPage = () => {
     );
   }, [activeFilter, userLocation]);
 
-  const loadReports = useCallback(async () => {
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setInitialLocationResolved(true);
+      return;
+    }
+
+    let cancelled = false;
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        if (cancelled) {
+          return;
+        }
+
+        const nextLocation = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+
+        setUserLocation(nextLocation);
+        setCurrentCenter(nextLocation);
+        setFlyTarget({ ...nextLocation, zoom: 15 });
+        setInitialLocationResolved(true);
+      },
+      () => {
+        if (!cancelled) {
+          setInitialLocationResolved(true);
+        }
+      },
+      {
+        enableHighAccuracy: false,
+        maximumAge: 60000,
+        timeout: 7000,
+      }
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const loadReports = useCallback(async (signal?: AbortSignal) => {
     try {
       setLoadingReports(true);
       const nextReports = await reportService.fetchReports({
         status: activeFilter,
-        lat: userLocation?.lat,
-        lng: userLocation?.lng,
-      });
+        lat: reportFetchCenter.lat,
+        lng: reportFetchCenter.lng,
+        maxDistance: REPORT_MAX_DISTANCE_METERS,
+        limit: REPORT_LIMIT,
+      }, signal);
       setReports(nextReports.filter(shouldShowReportOnMap));
     } catch (error) {
+      if (isAbortError(error)) {
+        return;
+      }
+
       console.error(error);
       toast.error("Không tải được danh sách điểm rác");
     } finally {
-      setLoadingReports(false);
+      if (!signal?.aborted) {
+        setLoadingReports(false);
+      }
     }
-  }, [activeFilter, userLocation]);
+  }, [activeFilter, reportFetchCenter.lat, reportFetchCenter.lng]);
 
   useEffect(() => {
-    loadReports();
-  }, [loadReports]);
+    if (!initialLocationResolved) {
+      return;
+    }
+
+    const controller = new AbortController();
+    loadReports(controller.signal);
+
+    return () => {
+      controller.abort();
+    };
+  }, [initialLocationResolved, loadReports]);
 
   const syncReport = useCallback(
     async (reportId: string) => {
@@ -543,12 +638,34 @@ const EcoMapPage = () => {
     shareOpen,
   ]);
 
-  const nearbyReports = useMemo(() => {
+  const visibleReports = useMemo(() => {
     return reports
+      .map((report) =>
+        report.distanceMeters !== undefined
+          ? report
+          : {
+              ...report,
+              distanceMeters: getDistanceMeters(reportFetchCenter, {
+                lat: report.location.lat,
+                lng: report.location.lng,
+              }),
+            }
+      )
+      .filter(
+        (report) =>
+          (report.distanceMeters ?? 0) <= REPORT_MAX_DISTANCE_METERS &&
+          (activeFilter === "ALL" || report.status === activeFilter)
+      )
+      .sort((a, b) => (a.distanceMeters ?? 0) - (b.distanceMeters ?? 0))
+      .slice(0, REPORT_LIMIT);
+  }, [activeFilter, reportFetchCenter, reports]);
+
+  const nearbyReports = useMemo(() => {
+    return visibleReports
       .filter((report) => report.distanceMeters !== undefined)
       .sort((a, b) => (a.distanceMeters ?? 0) - (b.distanceMeters ?? 0))
       .slice(0, 4);
-  }, [reports]);
+  }, [visibleReports]);
 
   const handleSelectReport = (report: TrashReport) => {
     setSelectedReport(report);
@@ -585,6 +702,8 @@ const EcoMapPage = () => {
 
   const searchPlaces = useCallback(async (query: string) => {
     const normalizedQuery = query.trim();
+    searchAbortRef.current?.abort();
+
     if (!normalizedQuery) {
       setSearchResults([]);
       return;
@@ -597,21 +716,31 @@ const EcoMapPage = () => {
       return;
     }
 
+    const controller = new AbortController();
+    searchAbortRef.current = controller;
+
     try {
       setSearching(true);
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
           normalizedQuery
-        )}&limit=5`
+        )}&limit=5`,
+        { signal: controller.signal }
       );
       const results = (await response.json()) as SearchResult[];
       searchCacheRef.current[cacheKey] = results;
       setSearchResults(results);
     } catch (error) {
+      if (isAbortError(error)) {
+        return;
+      }
+
       console.error(error);
       toast.error("Không tìm được địa điểm");
     } finally {
-      setSearching(false);
+      if (searchAbortRef.current === controller) {
+        setSearching(false);
+      }
     }
   }, []);
 
@@ -619,6 +748,8 @@ const EcoMapPage = () => {
     const query = searchQuery.trim();
 
     if (query.length < 3) {
+      searchAbortRef.current?.abort();
+      setSearching(false);
       setSearchResults([]);
       return;
     }
@@ -713,52 +844,130 @@ const EcoMapPage = () => {
   };
 
   const handleVerifyReport = async () => {
-    if (!selectedReport) {
+    if (!selectedReport || !user) {
       return;
     }
 
+    const previousReport = selectedReport;
+    const alreadyVerified = selectedReport.verifications.some(
+      (item) => item.userId === user._id
+    );
+    const optimisticVerifications = alreadyVerified
+      ? selectedReport.verifications
+      : [
+          ...selectedReport.verifications,
+          { userId: user._id, createdAt: new Date().toISOString() },
+        ];
+    const optimisticReport: TrashReport = {
+      ...selectedReport,
+      verifications: optimisticVerifications,
+      status:
+        selectedReport.status === "ACTIVE" && optimisticVerifications.length >= 2
+          ? "VERIFIED"
+          : selectedReport.status,
+      updatedAt: new Date().toISOString(),
+    };
+    let shouldRollbackReport = true;
+
     try {
+      setReportActionLoading(selectedReport._id, true);
+      upsertReport(optimisticReport);
       const updated = await reportService.verifyReport(selectedReport._id);
       upsertReport(updated);
-      await syncReport(selectedReport._id);
+      shouldRollbackReport = false;
       toast.success("Đã xác nhận điểm rác");
     } catch (error) {
       console.error(error);
       toast.error("Không xác nhận được điểm rác");
+    } finally {
+      if (shouldRollbackReport) {
+        upsertReport(previousReport);
+      }
+
+      setReportActionLoading(selectedReport._id, false);
     }
   };
 
   const handleConfirmClean = async () => {
-    if (!selectedReport) {
+    if (!selectedReport || !user) {
       return;
     }
 
+    const previousReport = selectedReport;
+    const alreadyConfirmed = selectedReport.cleanupConfirmations.some(
+      (item) => item.userId === user._id
+    );
+    const optimisticConfirmations = alreadyConfirmed
+      ? selectedReport.cleanupConfirmations
+      : [
+          ...selectedReport.cleanupConfirmations,
+          { userId: user._id, createdAt: new Date().toISOString() },
+        ];
+    const becameCleaned = optimisticConfirmations.length >= 2;
+    const optimisticReport: TrashReport = {
+      ...selectedReport,
+      cleanupConfirmations: optimisticConfirmations,
+      status: becameCleaned ? "CLEANED" : selectedReport.status,
+      cleanedAt: becameCleaned
+        ? selectedReport.cleanedAt ?? new Date().toISOString()
+        : selectedReport.cleanedAt,
+      updatedAt: new Date().toISOString(),
+    };
+    let shouldRollbackReport = true;
+
     try {
+      setReportActionLoading(selectedReport._id, true);
+      upsertReport(optimisticReport);
       const updated = await reportService.confirmClean(selectedReport._id);
       upsertReport(updated);
-      await syncReport(selectedReport._id);
+      shouldRollbackReport = false;
       toast.success("Đã xác nhận sạch");
     } catch (error) {
       console.error(error);
       toast.error("Không xác nhận sạch được");
+    } finally {
+      if (shouldRollbackReport) {
+        upsertReport(previousReport);
+      }
+
+      setReportActionLoading(selectedReport._id, false);
     }
   };
 
   const handleCleanupReport = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!selectedReport) {
+    if (!selectedReport || !user) {
       return;
     }
 
+    const previousReport = selectedReport;
+    const optimisticReport: TrashReport = {
+      ...selectedReport,
+      status: "CLEANUP_PENDING",
+      cleanupConfirmations: [],
+      cleanedAt: null,
+      cleanup: {
+        ...selectedReport.cleanup,
+        cleanedBy: user,
+        beforeImages: selectedReport.images,
+        description: cleanupDescription,
+        createdAt: new Date().toISOString(),
+      },
+      updatedAt: new Date().toISOString(),
+    };
+    let shouldRollbackReport = true;
+
     try {
       setCleaning(true);
+      setReportActionLoading(selectedReport._id, true);
+      upsertReport(optimisticReport);
       const updated = await reportService.cleanupReport(selectedReport._id, {
         description: cleanupDescription,
         images: cleanupImages,
       });
       upsertReport(updated);
-      await syncReport(selectedReport._id);
+      shouldRollbackReport = false;
       setCleanupOpen(false);
       setCleanupDescription("");
       setCleanupImages([]);
@@ -767,6 +976,11 @@ const EcoMapPage = () => {
       console.error(error);
       toast.error("Không gửi được báo cáo dọn rác");
     } finally {
+      if (shouldRollbackReport) {
+        upsertReport(previousReport);
+      }
+
+      setReportActionLoading(selectedReport._id, false);
       setCleaning(false);
     }
   };
@@ -935,9 +1149,12 @@ const EcoMapPage = () => {
     ? STATUS_META[selectedReport.status]
     : null;
   const selectedImage = selectedReport?.images?.[0];
+  const selectedReportActionLoading = selectedReport
+    ? Boolean(reportActionLoadingById[selectedReport._id])
+    : false;
 
   return (
-    <main className="relative h-full min-h-0 flex-1 overflow-hidden rounded-2xl border border-border/60 bg-background shadow-soft">
+    <main className="relative isolate h-full min-h-0 flex-1 overflow-hidden rounded-2xl border border-border/60 bg-background shadow-soft">
       <MapContainer
         center={[DEFAULT_CENTER.lat, DEFAULT_CENTER.lng]}
         zoom={13}
@@ -955,7 +1172,7 @@ const EcoMapPage = () => {
           onCenterChange={setCurrentCenter}
         />
 
-        {reports.map((report) => (
+        {visibleReports.map((report) => (
           <Marker
             key={report._id}
             position={[report.location.lat, report.location.lng]}
@@ -1363,16 +1580,26 @@ const EcoMapPage = () => {
                     type="button"
                     variant="outline"
                     onClick={handleVerifyReport}
-                    disabled={selectedReport.status === "CLEANED"}
+                    disabled={
+                      selectedReportActionLoading ||
+                      selectedReport.status === "CLEANED"
+                    }
                   >
-                    <CheckCircle2 className="size-4" />
+                    {selectedReportActionLoading ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="size-4" />
+                    )}
                     Xác nhận đúng rác
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => setCleanupOpen(true)}
-                    disabled={selectedReport.status === "CLEANED"}
+                    disabled={
+                      selectedReportActionLoading ||
+                      selectedReport.status === "CLEANED"
+                    }
                   >
                     <Trash2 className="size-4" />
                     Tôi đã dọn
@@ -1381,9 +1608,16 @@ const EcoMapPage = () => {
                     type="button"
                     variant="outline"
                     onClick={handleConfirmClean}
-                    disabled={selectedReport.status !== "CLEANUP_PENDING"}
+                    disabled={
+                      selectedReportActionLoading ||
+                      selectedReport.status !== "CLEANUP_PENDING"
+                    }
                   >
-                    <CheckCircle2 className="size-4" />
+                    {selectedReportActionLoading ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="size-4" />
+                    )}
                     Xác nhận đã sạch
                   </Button>
                   <div className="grid grid-cols-2 gap-2">

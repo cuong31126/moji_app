@@ -14,12 +14,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from "../ui/dialog";
-import { MapPin, RotateCcw, SmilePlus, Trash2 } from "lucide-react";
+import { MapPin, RefreshCcw, RotateCcw, SmilePlus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router";
 import type { TrashReportStatus } from "@/types/report";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useChatStore } from "@/stores/useChatStore";
+import { useSocketStore } from "@/stores/useSocketStore";
 import UserProfileDialog from "../profile/UserProfileDialog";
 
 const REACTION_OPTIONS = ["👍", "❤️", "😂", "😮", "😢"];
@@ -46,7 +47,12 @@ const MessageItem = ({
 }: MessageItemProps) => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { reactToMessage } = useChatStore();
+  const {
+    confirmOptimisticMessage,
+    reactToMessage,
+    setMessageStatus,
+  } = useChatStore();
+  const { sendChatMessage } = useSocketStore();
   const [openDialog, setOpenDialog] = useState(false);
   const [isRevoking, setIsRevoking] = useState(false);
   const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
@@ -66,8 +72,10 @@ const MessageItem = ({
   const participant = selectedConvo.participants.find(
     (p: Participant) => p._id.toString() === message.senderId.toString()
   );
-  const canRevoke = message.isOwn && !message.isRevoked;
-  const canReact = !message.isRevoked;
+  const isPendingMessage =
+    message.status === "sending" || message.status === "error";
+  const canRevoke = message.isOwn && !message.isRevoked && !isPendingMessage;
+  const canReact = !message.isRevoked && !isPendingMessage;
   const reactions = useMemo(() => message.reactions ?? [], [message.reactions]);
   const myReaction = user
     ? reactions.find((reaction) => getReactionUserId(reaction) === user._id)
@@ -150,6 +158,32 @@ const MessageItem = ({
       toast.error("Khong them duoc reaction");
     } finally {
       setReacting(false);
+    }
+  };
+
+  const handleRetrySend = async () => {
+    if (!message.clientId) {
+      return;
+    }
+
+    if (message.imgUrl?.startsWith("blob:")) {
+      toast.error("Ảnh gửi lỗi cần chọn lại.");
+      return;
+    }
+
+    try {
+      setMessageStatus(message.conversationId, message.clientId, "sending");
+      const sentMessage = await sendChatMessage({
+        conversationId: message.conversationId,
+        content: message.content ?? "",
+        imgUrl: message.imgUrl ?? undefined,
+        clientId: message.clientId,
+      });
+      confirmOptimisticMessage(message.clientId, sentMessage);
+    } catch (error) {
+      console.error(error);
+      setMessageStatus(message.conversationId, message.clientId, "error");
+      toast.error("Không gửi lại được tin nhắn");
     }
   };
 
@@ -369,7 +403,38 @@ const MessageItem = ({
             </div>
           </div>
 
-          {message.isOwn && message._id === selectedConvo.lastMessage?._id && (
+          {message.isOwn && message.status && message.status !== "sent" && (
+            <div className="flex items-center gap-1">
+              <Badge
+                variant="outline"
+                className={cn(
+                  "h-5 border-0 px-1.5 py-0.5 text-xs",
+                  message.status === "sending"
+                    ? "bg-muted text-muted-foreground"
+                    : "bg-destructive/10 text-destructive"
+                )}
+              >
+                {message.status === "sending" ? "Đang gửi" : "Lỗi"}
+              </Badge>
+              {message.status === "error" && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-6"
+                  title="Gửi lại"
+                  onClick={handleRetrySend}
+                >
+                  <RefreshCcw className="size-3.5" />
+                </Button>
+              )}
+            </div>
+          )}
+
+          {message.isOwn &&
+            message.status !== "sending" &&
+            message.status !== "error" &&
+            message._id === selectedConvo.lastMessage?._id && (
             <Badge
               variant="outline"
               className={cn(

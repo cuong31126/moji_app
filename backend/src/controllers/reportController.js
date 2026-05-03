@@ -267,7 +267,7 @@ const emitConversationToParticipants = async (conversation) => {
 
 export const getReports = async (req, res) => {
   try {
-    const { status, lat, lng, limit = 100, maxDistance = 50000 } = req.query;
+    const { status, lat, lng, limit = 80, maxDistance = 50000 } = req.query;
     const cleanedCutoff = new Date(Date.now() - CLEANED_REPORT_RETENTION_MS);
     const queryClauses = [
       {
@@ -281,8 +281,11 @@ export const getReports = async (req, res) => {
     const userLat = Number(lat);
     const userLng = Number(lng);
     const hasUserLocation = Number.isFinite(userLat) && Number.isFinite(userLng);
-    const limitNumber = Math.min(Number(limit) || 100, 200);
-    const maxDistanceMeters = Math.min(Number(maxDistance) || 50000, 200000);
+    const limitNumber = Math.min(Math.max(Number(limit) || 80, 1), 100);
+    const maxDistanceMeters = Math.min(
+      Math.max(Number(maxDistance) || 50000, 1000),
+      200000
+    );
 
     if (status && status !== "ALL") {
       queryClauses.push({ status });

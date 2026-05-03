@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { io, type Socket } from "socket.io-client";
 import type { SocketState } from "@/types/store";
 import { toast } from "sonner";
+import type { Message, SendSocketMessageInput } from "@/types/chat";
 
 const baseURL = import.meta.env.VITE_SOCKET_URL;
 
@@ -18,6 +19,36 @@ const getChatState = async () => {
 export const useSocketStore = create<SocketState>((set, get) => ({
   socket: null,
   onlineUsers: [],
+  sendChatMessage: (input: SendSocketMessageInput) => {
+    const socket = get().socket;
+
+    if (!socket?.connected) {
+      return Promise.reject(new Error("Socket is not connected"));
+    }
+
+    return new Promise<Message>((resolve, reject) => {
+      socket.timeout(12000).emit(
+        "message:send",
+        input,
+        (
+          error: Error | null,
+          ack?: { ok: boolean; message?: Message; error?: string }
+        ) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+
+          if (!ack?.ok || !ack.message) {
+            reject(new Error(ack?.error || "Send message failed"));
+            return;
+          }
+
+          resolve(ack.message);
+        }
+      );
+    });
+  },
   connectSocket: () => {
     void (async () => {
       const accessToken = (await getAuthState()).accessToken;
@@ -121,20 +152,30 @@ export const useSocketStore = create<SocketState>((set, get) => ({
         })();
       });
 
-      socket.on("group-invite:updated", () => {
+      socket.on("group-invite:updated", ({ invite } = {}) => {
         void (async () => {
-          (await getChatState()).fetchGroupInvites();
+          const chatState = await getChatState();
+          if (invite) {
+            chatState.applyGroupInviteUpdate(invite);
+            return;
+          }
+
+          chatState.fetchGroupInvites();
         })();
       });
 
-      socket.on("group-invite:approved", ({ conversation }) => {
+      socket.on("group-invite:approved", ({ invite, conversation }) => {
         void (async () => {
           const chatState = await getChatState();
           if (conversation) {
             chatState.addConvo(conversation);
             socket.emit("join-conversation", conversation._id);
           }
-          chatState.fetchGroupInvites();
+          if (invite) {
+            chatState.applyGroupInviteUpdate(invite);
+          } else {
+            chatState.fetchGroupInvites();
+          }
           toast.success("Lời mời nhóm đã được duyệt");
         })();
       });

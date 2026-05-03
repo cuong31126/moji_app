@@ -49,7 +49,7 @@ const GroupInvites = () => {
     approveGroupInvite,
     declineGroupInvite,
     groupInvites,
-    loading,
+    inviteActionLoadingById,
     rejectGroupInvite,
   } = useChatStore();
 
@@ -121,7 +121,7 @@ const GroupInvites = () => {
                   <Button
                     size="sm"
                     onClick={() => handleAccept(invite._id)}
-                    disabled={loading}
+                    disabled={Boolean(inviteActionLoadingById[invite._id])}
                   >
                     <Check className="size-4" />
                     Đồng ý
@@ -130,7 +130,7 @@ const GroupInvites = () => {
                     size="sm"
                     variant="outline"
                     onClick={() => handleReject(invite._id)}
-                    disabled={loading}
+                    disabled={Boolean(inviteActionLoadingById[invite._id])}
                   >
                     <X className="size-4" />
                     Từ chối
@@ -162,7 +162,7 @@ const GroupInvites = () => {
                   <Button
                     size="sm"
                     onClick={() => handleApprove(invite._id)}
-                    disabled={loading}
+                    disabled={Boolean(inviteActionLoadingById[invite._id])}
                   >
                     <Check className="size-4" />
                     Duyệt
@@ -171,7 +171,7 @@ const GroupInvites = () => {
                     size="sm"
                     variant="outline"
                     onClick={() => handleDecline(invite._id)}
-                    disabled={loading}
+                    disabled={Boolean(inviteActionLoadingById[invite._id])}
                   >
                     <X className="size-4" />
                     Từ chối

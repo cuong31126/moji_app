@@ -19,6 +19,10 @@ export default defineConfig({
             return;
           }
 
+          if (id.includes("leaflet") || id.includes("react-leaflet")) {
+            return "map-vendor";
+          }
+
           return "vendor";
         },
       },

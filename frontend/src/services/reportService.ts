@@ -12,6 +12,8 @@ interface FetchReportsParams {
   status?: TrashReportStatus | "ALL";
   lat?: number;
   lng?: number;
+  maxDistance?: number;
+  limit?: number;
 }
 
 const appendImages = (formData: FormData, files?: File[]) => {
@@ -19,9 +21,10 @@ const appendImages = (formData: FormData, files?: File[]) => {
 };
 
 export const reportService = {
-  async fetchReports(params: FetchReportsParams = {}) {
+  async fetchReports(params: FetchReportsParams = {}, signal?: AbortSignal) {
     const res = await api.get<{ reports: TrashReport[] }>("/reports", {
       params,
+      signal,
     });
     return res.data.reports;
   },

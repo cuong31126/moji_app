@@ -1,23 +1,32 @@
 import { useAuthStore } from "@/stores/useAuthStore";
-import type { Conversation } from "@/types/chat";
+import type { Conversation, Message } from "@/types/chat";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../ui/button";
 import { ImagePlus, Loader2, Send, Sparkles, X } from "lucide-react";
 import { Textarea } from "../ui/textarea";
 import EmojiPicker from "./EmojiPicker";
 import { useChatStore } from "@/stores/useChatStore";
+import { useSocketStore } from "@/stores/useSocketStore";
 import { toast } from "sonner";
 import { chatService } from "@/services/chatService";
 import { aiService } from "@/services/aiService";
 
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 
+const createClientId = () =>
+  globalThis.crypto?.randomUUID?.() ??
+  `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
 const MessageInput = ({ selectedConvo }: { selectedConvo: Conversation }) => {
   const { user } = useAuthStore();
-  const { sendDirectMessage, sendGroupMessage } = useChatStore();
+  const {
+    addOptimisticMessage,
+    confirmOptimisticMessage,
+    setMessageStatus,
+  } = useChatStore();
+  const { sendChatMessage } = useSocketStore();
   const [value, setValue] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [sending, setSending] = useState(false);
   const [suggestedEmojis, setSuggestedEmojis] = useState<string[]>([]);
   const [suggestingEmojis, setSuggestingEmojis] = useState(false);
   const [emojiError, setEmojiError] = useState("");
@@ -100,51 +109,67 @@ const MessageInput = ({ selectedConvo }: { selectedConvo: Conversation }) => {
 
   const sendMessage = async () => {
     const text = value.trim();
+    const file = imageFile;
 
-    if ((!text && !imageFile) || sending) return;
+    if (!text && !file) return;
 
-    setSending(true);
+    const clientId = createClientId();
+    const localImageUrl = file ? URL.createObjectURL(file) : undefined;
+    const createdAt = new Date().toISOString();
+    const optimisticMessage: Message = {
+      _id: clientId,
+      clientId,
+      conversationId: selectedConvo._id,
+      senderId: user._id,
+      content: text || null,
+      imgUrl: localImageUrl,
+      messageType: file && !text ? "image" : "text",
+      createdAt,
+      isOwn: true,
+      status: "sending",
+    };
 
-    try {
+    addOptimisticMessage(optimisticMessage);
+    setValue("");
+    setImageFile(null);
+    setSuggestedEmojis([]);
+    setEmojiError("");
+    focusMessageInput();
+
+    void (async () => {
       let imgUrl: string | undefined;
 
-      if (imageFile) {
-        const formData = new FormData();
-        formData.append("file", imageFile);
-        imgUrl = await chatService.uploadMessageImage(formData);
-      }
-
-      if (selectedConvo.type === "direct") {
-        const otherUser = selectedConvo.participants.find((p) => p._id !== user._id);
-
-        if (!otherUser) {
-          throw new Error("Không tìm thấy người nhận.");
+      try {
+        if (file) {
+          const formData = new FormData();
+          formData.append("file", file);
+          imgUrl = await chatService.uploadMessageImage(formData);
         }
 
-        await sendDirectMessage(otherUser._id, text, imgUrl);
-      } else {
-        await sendGroupMessage(selectedConvo._id, text, imgUrl);
-      }
+        const sentMessage = await sendChatMessage({
+          conversationId: selectedConvo._id,
+          content: text,
+          imgUrl,
+          clientId,
+        });
 
-      setValue("");
-      setImageFile(null);
-      setSuggestedEmojis([]);
-      setEmojiError("");
-    } catch (error) {
-      console.error(error);
-      toast.error("Lỗi xảy ra khi gửi tin nhắn. Bạn hãy thử lại!");
-    } finally {
-      setSending(false);
-      focusMessageInput();
-    }
+        confirmOptimisticMessage(clientId, sentMessage);
+
+        if (localImageUrl) {
+          URL.revokeObjectURL(localImageUrl);
+        }
+      } catch (error) {
+        console.error(error);
+        setMessageStatus(selectedConvo._id, clientId, "error");
+        toast.error("Không gửi được tin nhắn. Bạn hãy thử lại!");
+      }
+    })();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (!sending) {
-        void sendMessage();
-      }
+      void sendMessage();
     }
   };
 
@@ -164,7 +189,6 @@ const MessageInput = ({ selectedConvo }: { selectedConvo: Conversation }) => {
               size="icon"
               className="absolute right-1 top-1 size-6 rounded-full"
               onClick={clearImage}
-              disabled={sending}
             >
               <X className="size-3" />
             </Button>
@@ -225,7 +249,6 @@ const MessageInput = ({ selectedConvo }: { selectedConvo: Conversation }) => {
           size="icon"
           className="hover:bg-primary/10 transition-smooth"
           onClick={() => fileInputRef.current?.click()}
-          disabled={sending}
         >
           <ImagePlus className="size-4" />
         </Button>
@@ -237,7 +260,6 @@ const MessageInput = ({ selectedConvo }: { selectedConvo: Conversation }) => {
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder="Soạn tin nhắn..."
-            readOnly={sending}
             rows={1}
             className="max-h-32 min-h-10 resize-none overflow-y-auto border-border/50 bg-white py-2 pr-28 transition-smooth focus:border-primary/50"
           />
@@ -248,7 +270,7 @@ const MessageInput = ({ selectedConvo }: { selectedConvo: Conversation }) => {
               size="icon"
               className="size-8 hover:bg-primary/10 transition-smooth"
               onClick={suggestEmojis}
-              disabled={sending || suggestingEmojis || !value.trim()}
+              disabled={suggestingEmojis || !value.trim()}
               title="Gợi ý emoji bằng AI"
             >
               {suggestingEmojis ? (
@@ -264,9 +286,7 @@ const MessageInput = ({ selectedConvo }: { selectedConvo: Conversation }) => {
               className="size-8 hover:bg-primary/10 transition-smooth"
             >
               <div>
-                <EmojiPicker
-                  onChange={(emoji: string) => appendEmoji(emoji)}
-                />
+                <EmojiPicker onChange={(emoji: string) => appendEmoji(emoji)} />
               </div>
             </Button>
           </div>
@@ -276,13 +296,9 @@ const MessageInput = ({ selectedConvo }: { selectedConvo: Conversation }) => {
           type="button"
           onClick={sendMessage}
           className="bg-gradient-chat transition-smooth hover:scale-105 hover:shadow-glow"
-          disabled={sending || (!value.trim() && !imageFile)}
+          disabled={!value.trim() && !imageFile}
         >
-          {sending ? (
-            <Loader2 className="size-4 animate-spin text-white" />
-          ) : (
-            <Send className="size-4 text-white" />
-          )}
+          <Send className="size-4 text-white" />
         </Button>
       </div>
     </div>

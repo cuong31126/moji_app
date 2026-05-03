@@ -8,6 +8,55 @@ const getAuthState = async () => {
   return useAuthStore.getState();
 };
 
+const getMessageKey = (message: { _id?: string; clientId?: string }) =>
+  message.clientId || message._id || "";
+
+const mergeMessages = (messages: ChatState["messages"][string]["items"]) => {
+  const merged: typeof messages = [];
+  const indexes = new Map<string, number>();
+
+  messages.forEach((message) => {
+    const keys = [message._id, message.clientId].filter(Boolean) as string[];
+    const existingIndex = keys
+      .map((key) => indexes.get(key))
+      .find((index) => index !== undefined);
+
+    if (existingIndex !== undefined) {
+      const nextStatus =
+        merged[existingIndex].status === "sent" || message.status === "sent"
+          ? "sent"
+          : message.status ?? merged[existingIndex].status;
+
+      merged[existingIndex] = {
+        ...merged[existingIndex],
+        ...message,
+        isOwn: merged[existingIndex].isOwn ?? message.isOwn,
+        status: nextStatus,
+      };
+
+      keys.forEach((key) => indexes.set(key, existingIndex));
+      return;
+    }
+
+    const nextIndex = merged.length;
+    merged.push(message);
+    keys.forEach((key) => indexes.set(key, nextIndex));
+  });
+
+  return merged;
+};
+
+const getOptimisticLastMessage = (message: ChatState["messages"][string]["items"][number]) => ({
+  _id: getMessageKey(message),
+  content: message.content || (message.imgUrl ? "Đã gửi một ảnh" : ""),
+  createdAt: message.createdAt,
+  sender: {
+    _id: message.senderId,
+    displayName: "",
+    avatarUrl: null,
+  },
+});
+
 export const useChatStore = create<ChatState>()(
   persist(
     (set, get) => ({
@@ -19,6 +68,7 @@ export const useChatStore = create<ChatState>()(
       loading: false,
       groupInvites: [],
       adminGroupInvites: [],
+      inviteActionLoadingById: {},
 
       setActiveConversation: (id) => set({ activeConversationId: id }),
       reset: () => {
@@ -30,6 +80,7 @@ export const useChatStore = create<ChatState>()(
           messageLoading: false,
           groupInvites: [],
           adminGroupInvites: [],
+          inviteActionLoadingById: {},
         });
       },
       fetchConversations: async () => {
@@ -68,11 +119,15 @@ export const useChatStore = create<ChatState>()(
           const processed = fetched.map((m) => ({
             ...m,
             isOwn: m.senderId === user?._id,
+            status: "sent" as const,
           }));
 
           set((state) => {
             const prev = state.messages[convoId]?.items ?? [];
-            const merged = prev.length > 0 ? [...processed, ...prev] : processed;
+            const merged =
+              prev.length > 0
+                ? mergeMessages([...processed, ...prev])
+                : mergeMessages(processed);
 
             return {
               messages: {
@@ -123,34 +178,123 @@ export const useChatStore = create<ChatState>()(
           throw error;
         }
       },
+      addOptimisticMessage: (message) => {
+        const convoId = message.conversationId;
+
+        set((state) => {
+          const current = state.messages[convoId] ?? {
+            items: [],
+            hasMore: false,
+            nextCursor: undefined,
+          };
+          const optimisticMessage = {
+            ...message,
+            status: message.status ?? "sending",
+            isOwn: true,
+          };
+
+          return {
+            messages: {
+              ...state.messages,
+              [convoId]: {
+                ...current,
+                items: mergeMessages([...current.items, optimisticMessage]),
+              },
+            },
+            conversations: state.conversations.map((conversation) =>
+              conversation._id === convoId
+                ? {
+                    ...conversation,
+                    seenBy: [],
+                    lastMessageAt: optimisticMessage.createdAt,
+                    lastMessage: getOptimisticLastMessage(optimisticMessage),
+                  }
+                : conversation
+            ),
+          };
+        });
+      },
+      confirmOptimisticMessage: (clientId, message) => {
+        const convoId = message.conversationId;
+
+        set((state) => {
+          const current = state.messages[convoId] ?? {
+            items: [],
+            hasMore: false,
+            nextCursor: undefined,
+          };
+          const confirmedMessage = {
+            ...message,
+            status: "sent" as const,
+          };
+          const replaced = current.items.some(
+            (item) => item.clientId === clientId || item._id === clientId
+          );
+          const nextItems = replaced
+            ? current.items.map((item) =>
+                item.clientId === clientId || item._id === clientId
+                  ? { ...item, ...confirmedMessage, isOwn: item.isOwn }
+                  : item
+              )
+            : [...current.items, confirmedMessage];
+
+          return {
+            messages: {
+              ...state.messages,
+              [convoId]: {
+                ...current,
+                items: mergeMessages(nextItems),
+              },
+            },
+          };
+        });
+      },
+      setMessageStatus: (conversationId, clientId, status) => {
+        set((state) => {
+          const current = state.messages[conversationId];
+
+          if (!current) {
+            return state;
+          }
+
+          return {
+            messages: {
+              ...state.messages,
+              [conversationId]: {
+                ...current,
+                items: current.items.map((item) =>
+                  item.clientId === clientId || item._id === clientId
+                    ? { ...item, status }
+                    : item
+                ),
+              },
+            },
+          };
+        });
+      },
       addMessage: async (message) => {
         try {
           const { user } = await getAuthState();
-          const { fetchMessages } = get();
-
-          message.isOwn = message.senderId === user?._id;
-
           const convoId = message.conversationId;
-
-          let prevItems = get().messages[convoId]?.items ?? [];
-
-          if (prevItems.length === 0) {
-            await fetchMessages(message.conversationId);
-            prevItems = get().messages[convoId]?.items ?? [];
-          }
+          const nextMessage = {
+            ...message,
+            isOwn: message.senderId === user?._id,
+            status: "sent" as const,
+          };
 
           set((state) => {
-            if (prevItems.some((m) => m._id === message._id)) {
-              return state;
-            }
+            const current = state.messages[convoId] ?? {
+              items: [],
+              hasMore: false,
+              nextCursor: undefined,
+            };
 
             return {
               messages: {
                 ...state.messages,
                 [convoId]: {
-                  items: [...prevItems, message],
-                  hasMore: state.messages[convoId].hasMore,
-                  nextCursor: state.messages[convoId].nextCursor ?? undefined,
+                  ...current,
+                  items: mergeMessages([...current.items, nextMessage]),
                 },
               },
             };
@@ -175,7 +319,8 @@ export const useChatStore = create<ChatState>()(
               [convoId]: {
                 ...current,
                 items: current.items.map((item) =>
-                  item._id === message._id
+                  item._id === message._id ||
+                  (message.clientId && item.clientId === message.clientId)
                     ? { ...item, ...message, isOwn: item.isOwn }
                     : item
                 ),
@@ -446,9 +591,38 @@ export const useChatStore = create<ChatState>()(
           console.error("Loi xay ra khi fetch group invites", error);
         }
       },
+      applyGroupInviteUpdate: (invite) => {
+        set((state) => {
+          const groupInvites = state.groupInvites.filter(
+            (item) => item._id !== invite._id
+          );
+          const adminGroupInvites = state.adminGroupInvites.filter(
+            (item) => item._id !== invite._id
+          );
+
+          if (invite.status === "pending_user" || invite.status === "pending") {
+            groupInvites.unshift(invite);
+          }
+
+          return { groupInvites, adminGroupInvites };
+        });
+      },
       acceptGroupInvite: async (inviteId) => {
+        const previous = {
+          groupInvites: get().groupInvites,
+          adminGroupInvites: get().adminGroupInvites,
+        };
+
         try {
-          set({ loading: true });
+          set((state) => ({
+            groupInvites: state.groupInvites.filter(
+              (invite) => invite._id !== inviteId
+            ),
+            inviteActionLoadingById: {
+              ...state.inviteActionLoadingById,
+              [inviteId]: true,
+            },
+          }));
           const result = await chatService.acceptGroupInvite(inviteId);
 
           if (result.conversation) {
@@ -458,54 +632,114 @@ export const useChatStore = create<ChatState>()(
               .getState()
               .socket?.emit("join-conversation", result.conversation._id);
           }
-
-          await get().fetchGroupInvites();
         } catch (error) {
+          set(previous);
           console.error("Loi xay ra khi accept group invite", error);
           throw error;
         } finally {
-          set({ loading: false });
+          set((state) => ({
+            inviteActionLoadingById: {
+              ...state.inviteActionLoadingById,
+              [inviteId]: false,
+            },
+          }));
         }
       },
       rejectGroupInvite: async (inviteId) => {
+        const previous = {
+          groupInvites: get().groupInvites,
+          adminGroupInvites: get().adminGroupInvites,
+        };
+
         try {
-          set({ loading: true });
+          set((state) => ({
+            groupInvites: state.groupInvites.filter(
+              (invite) => invite._id !== inviteId
+            ),
+            adminGroupInvites: state.adminGroupInvites.filter(
+              (invite) => invite._id !== inviteId
+            ),
+            inviteActionLoadingById: {
+              ...state.inviteActionLoadingById,
+              [inviteId]: true,
+            },
+          }));
           await chatService.rejectGroupInvite(inviteId);
-          await get().fetchGroupInvites();
         } catch (error) {
+          set(previous);
           console.error("Loi xay ra khi reject group invite", error);
           throw error;
         } finally {
-          set({ loading: false });
+          set((state) => ({
+            inviteActionLoadingById: {
+              ...state.inviteActionLoadingById,
+              [inviteId]: false,
+            },
+          }));
         }
       },
       approveGroupInvite: async (inviteId) => {
+        const previous = {
+          groupInvites: get().groupInvites,
+          adminGroupInvites: get().adminGroupInvites,
+        };
+
         try {
-          set({ loading: true });
+          set((state) => ({
+            adminGroupInvites: state.adminGroupInvites.filter(
+              (invite) => invite._id !== inviteId
+            ),
+            inviteActionLoadingById: {
+              ...state.inviteActionLoadingById,
+              [inviteId]: true,
+            },
+          }));
           const result = await chatService.approveGroupInvite(inviteId);
 
           if (result.conversation) {
             get().updateConversation(result.conversation);
           }
-
-          await get().fetchGroupInvites();
         } catch (error) {
+          set(previous);
           console.error("Loi xay ra khi approve group invite", error);
           throw error;
         } finally {
-          set({ loading: false });
+          set((state) => ({
+            inviteActionLoadingById: {
+              ...state.inviteActionLoadingById,
+              [inviteId]: false,
+            },
+          }));
         }
       },
       declineGroupInvite: async (inviteId) => {
+        const previous = {
+          groupInvites: get().groupInvites,
+          adminGroupInvites: get().adminGroupInvites,
+        };
+
         try {
-          set({ loading: true });
+          set((state) => ({
+            adminGroupInvites: state.adminGroupInvites.filter(
+              (invite) => invite._id !== inviteId
+            ),
+            inviteActionLoadingById: {
+              ...state.inviteActionLoadingById,
+              [inviteId]: true,
+            },
+          }));
           await chatService.declineGroupInvite(inviteId);
-          await get().fetchGroupInvites();
         } catch (error) {
+          set(previous);
           console.error("Loi xay ra khi decline group invite", error);
           throw error;
         } finally {
-          set({ loading: false });
+          set((state) => ({
+            inviteActionLoadingById: {
+              ...state.inviteActionLoadingById,
+              [inviteId]: false,
+            },
+          }));
         }
       },
     }),

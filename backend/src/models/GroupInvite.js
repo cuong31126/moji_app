@@ -80,6 +80,8 @@ groupInviteSchema.index({
   invitee: 1,
   status: 1,
 });
+groupInviteSchema.index({ invitee: 1, status: 1, createdAt: -1 });
+groupInviteSchema.index({ conversationId: 1, status: 1, createdAt: -1 });
 
 const GroupInvite = mongoose.model("GroupInvite", groupInviteSchema);
 

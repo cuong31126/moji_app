@@ -185,6 +185,7 @@ const ChatDetailsContent = ({
     declineGroupInvite,
     deleteGroupConversation,
     inviteGroupMembers,
+    inviteActionLoadingById,
     leaveGroupConversation,
     loading,
     messages,
@@ -871,7 +872,7 @@ const ChatDetailsContent = ({
                         variant="outline"
                         size="icon-sm"
                         title="Duyệt"
-                        disabled={loading}
+                        disabled={Boolean(inviteActionLoadingById[invite._id])}
                         onClick={() => handleApproveInvite(invite._id)}
                       >
                         <Check className="size-4" />
@@ -881,7 +882,7 @@ const ChatDetailsContent = ({
                         variant="ghost"
                         size="icon-sm"
                         title="Từ chối"
-                        disabled={loading}
+                        disabled={Boolean(inviteActionLoadingById[invite._id])}
                         onClick={() => handleDeclineInvite(invite._id)}
                       >
                         <X className="size-4 text-destructive" />

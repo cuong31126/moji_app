@@ -40,6 +40,8 @@ export interface MessageReaction {
   createdAt: string;
 }
 
+export type MessageStatus = "sending" | "sent" | "error";
+
 export interface Conversation {
   _id: string;
   type: "direct" | "group";
@@ -84,6 +86,7 @@ export interface GroupInviteResponse {
 
 export interface Message {
   _id: string;
+  clientId?: string;
   conversationId: string;
   senderId: string;
   content: string | null;
@@ -96,4 +99,12 @@ export interface Message {
   updatedAt?: string | null;
   createdAt: string;
   isOwn?: boolean;
+  status?: MessageStatus;
+}
+
+export interface SendSocketMessageInput {
+  conversationId: string;
+  content?: string;
+  imgUrl?: string;
+  clientId: string;
 }

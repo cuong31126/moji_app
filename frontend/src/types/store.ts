@@ -4,6 +4,8 @@ import type {
   GroupInvite,
   Message,
   MessageReaction,
+  MessageStatus,
+  SendSocketMessageInput,
 } from "./chat";
 import type { Friend, FriendRequest, User } from "./user";
 
@@ -52,6 +54,7 @@ export interface ChatState {
   loading: boolean;
   groupInvites: GroupInvite[];
   adminGroupInvites: GroupInvite[];
+  inviteActionLoadingById: Record<string, boolean>;
   reset: () => void;
 
   setActiveConversation: (id: string | null) => void;
@@ -69,6 +72,13 @@ export interface ChatState {
   ) => Promise<void>;
   // add message
   addMessage: (message: Message) => Promise<void>;
+  addOptimisticMessage: (message: Message) => void;
+  confirmOptimisticMessage: (clientId: string, message: Message) => void;
+  setMessageStatus: (
+    conversationId: string,
+    clientId: string,
+    status: MessageStatus
+  ) => void;
   updateMessage: (message: Message) => void;
   updateMessageReactions: (
     conversationId: string,
@@ -102,6 +112,7 @@ export interface ChatState {
     memberIds: string[]
   ) => Promise<void>;
   fetchGroupInvites: () => Promise<void>;
+  applyGroupInviteUpdate: (invite: GroupInvite) => void;
   acceptGroupInvite: (inviteId: string) => Promise<void>;
   rejectGroupInvite: (inviteId: string) => Promise<void>;
   approveGroupInvite: (inviteId: string) => Promise<void>;
@@ -113,6 +124,7 @@ export interface SocketState {
   onlineUsers: string[];
   connectSocket: () => void;
   disconnectSocket: () => void;
+  sendChatMessage: (input: SendSocketMessageInput) => Promise<Message>;
 }
 
 export interface FriendState {

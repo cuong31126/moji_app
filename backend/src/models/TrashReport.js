@@ -152,6 +152,7 @@ const trashReportSchema = new mongoose.Schema(
 
 trashReportSchema.index({ location: "2dsphere" });
 trashReportSchema.index({ status: 1, createdAt: -1 });
+trashReportSchema.index({ status: 1, cleanedAt: -1, createdAt: -1 });
 
 const TrashReport = mongoose.model("TrashReport", trashReportSchema);
 
