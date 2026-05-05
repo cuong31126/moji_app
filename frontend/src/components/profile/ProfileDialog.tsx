@@ -25,7 +25,7 @@ const ProfileDialog = ({ open, setOpen }: ProfileDialogProps) => {
             {/* heading */}
             <DialogHeader className="mb-6">
               <DialogTitle className="text-2xl font-bold text-foreground">
-                Profile & Settings
+                Tài khoản của bạn
               </DialogTitle>
             </DialogHeader>
 
@@ -40,24 +40,24 @@ const ProfileDialog = ({ open, setOpen }: ProfileDialogProps) => {
                   value="personal"
                   className="data-[state=active]:glass-strong"
                 >
-                  Tài Khoản
+                  Thông tin
                 </TabsTrigger>
                 <TabsTrigger
                   value="preferences"
                   className="data-[state=active]:glass-strong"
                 >
-                  Cấu Hình
+                  Tài khoản
                 </TabsTrigger>
                 <TabsTrigger
                   value="privacy"
                   className="data-[state=active]:glass-strong"
                 >
-                  Bảo Mật
+                  Bảo mật
                 </TabsTrigger>
               </TabsList>
 
               <TabsContent value="personal">
-                <PersonalInfoForm userInfo={user} />
+                <PersonalInfoForm key={user?._id ?? "profile"} userInfo={user} />
               </TabsContent>
 
               <TabsContent value="preferences">

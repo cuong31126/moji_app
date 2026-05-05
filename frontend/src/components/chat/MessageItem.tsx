@@ -1,6 +1,12 @@
 import { useMemo, useState } from "react";
 import { cn, formatMessageTime } from "@/lib/utils";
-import type { Conversation, Message, MessageReaction, Participant } from "@/types/chat";
+import type {
+  Conversation,
+  Message,
+  MessageReaction,
+  MessageReplyPreview,
+  Participant,
+} from "@/types/chat";
 import UserAvatar from "./UserAvatar";
 import { Card } from "../ui/card";
 import { Badge } from "../ui/badge";
@@ -14,19 +20,27 @@ import {
   DialogTitle,
   DialogFooter,
 } from "../ui/dialog";
-import { MapPin, RefreshCcw, RotateCcw, SmilePlus, Trash2 } from "lucide-react";
+import { MapPin, RefreshCcw, Reply, RotateCcw, SmilePlus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router";
 import type { TrashReportStatus } from "@/types/report";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useChatStore } from "@/stores/useChatStore";
 import { useSocketStore } from "@/stores/useSocketStore";
+import { notifyChatEvent } from "@/lib/chatAlerts";
 import UserProfileDialog from "../profile/UserProfileDialog";
 
 const REACTION_OPTIONS = ["👍", "❤️", "😂", "😮", "😢"];
 
 const getReactionUserId = (reaction: MessageReaction) =>
   typeof reaction.user === "string" ? reaction.user : reaction.user._id;
+
+const getReplyPreviewText = (message?: MessageReplyPreview | Message | null) => {
+  if (!message) return "Tin nhắn";
+  if (message.content) return message.content;
+  if (message.imgUrl) return "Đã gửi một ảnh";
+  return "Tin nhắn";
+};
 
 interface MessageItemProps {
   message: Message;
@@ -35,6 +49,7 @@ interface MessageItemProps {
   selectedConvo: Conversation;
   lastMessageStatus: "delivered" | "seen";
   onRevoke: (messageId: string) => Promise<void>;
+  onReply: (message: Message) => void;
 }
 
 const MessageItem = ({
@@ -44,6 +59,7 @@ const MessageItem = ({
   selectedConvo,
   lastMessageStatus,
   onRevoke,
+  onReply,
 }: MessageItemProps) => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
@@ -76,6 +92,34 @@ const MessageItem = ({
     message.status === "sending" || message.status === "error";
   const canRevoke = message.isOwn && !message.isRevoked && !isPendingMessage;
   const canReact = !message.isRevoked && !isPendingMessage;
+  const canReply = !message.isRevoked && !isPendingMessage;
+  const replyTarget = useMemo(() => {
+    if (message.replyTo && typeof message.replyTo === "object") {
+      return message.replyTo;
+    }
+
+    const replyId =
+      message.replyToMessageId ||
+      (typeof message.replyTo === "string" ? message.replyTo : null);
+
+    if (!replyId) {
+      return null;
+    }
+
+    return (
+      messages.find(
+        (item) => item._id === replyId || item.clientId === replyId
+      ) ?? null
+    );
+  }, [message.replyTo, message.replyToMessageId, messages]);
+  const replySender =
+    replyTarget && "sender" in replyTarget ? replyTarget.sender : undefined;
+  const replySenderId = replyTarget?.senderId || replySender?._id;
+  const replySenderName =
+    replySender?.displayName ||
+    selectedConvo.participants.find((item) => item._id === replySenderId)
+      ?.displayName ||
+    (replySenderId === user?._id ? "Bạn" : "Tin nhắn");
   const reactions = useMemo(() => message.reactions ?? [], [message.reactions]);
   const myReaction = user
     ? reactions.find((reaction) => getReactionUserId(reaction) === user._id)
@@ -177,9 +221,15 @@ const MessageItem = ({
         conversationId: message.conversationId,
         content: message.content ?? "",
         imgUrl: message.imgUrl ?? undefined,
+        replyToMessageId: message.replyToMessageId ?? undefined,
         clientId: message.clientId,
       });
       confirmOptimisticMessage(message.clientId, sentMessage);
+      notifyChatEvent({
+        title: "Tin nhắn đã gửi",
+        body: sentMessage.content || (sentMessage.imgUrl ? "Đã gửi một ảnh" : ""),
+        conversationId: message.conversationId,
+      });
     } catch (error) {
       console.error(error);
       setMessageStatus(message.conversationId, message.clientId, "error");
@@ -226,7 +276,25 @@ const MessageItem = ({
             message.isOwn ? "items-end" : "items-start"
           )}
         >
-          <div className="flex items-center gap-1">
+          <div
+            className={cn(
+              "flex items-center gap-1",
+              !message.isOwn && "flex-row-reverse"
+            )}
+          >
+            {canReply && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                title="Trả lời"
+                onClick={() => onReply(message)}
+                className="size-7 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
+              >
+                <Reply className="size-3.5" />
+              </Button>
+            )}
+
             {canRevoke && (
               <Button
                 type="button"
@@ -307,6 +375,22 @@ const MessageItem = ({
                 message.isRevoked && "bg-muted text-muted-foreground italic"
               )}
             >
+              {!message.isRevoked && replyTarget && (
+                <div
+                  className={cn(
+                    "mb-2 rounded-md border-l-2 bg-background/45 px-2 py-1.5 text-left",
+                    message.isOwn ? "border-white/70" : "border-primary/60"
+                  )}
+                >
+                  <p className="text-[11px] font-medium opacity-80">
+                    Trả lời {replySenderName}
+                  </p>
+                  <p className="line-clamp-2 text-xs opacity-75">
+                    {getReplyPreviewText(replyTarget)}
+                  </p>
+                </div>
+              )}
+
               {message.isRevoked ? (
                 <p className="text-sm leading-relaxed">Tin nhắn đã được thu hồi</p>
               ) : isTrashReportMessage ? (

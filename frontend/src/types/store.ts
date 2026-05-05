@@ -136,7 +136,7 @@ export interface FriendState {
   searchUsers: (keyword: string) => Promise<User[]>;
   addFriend: (to: string, message?: string) => Promise<string>;
   getAllFriendRequests: () => Promise<void>;
-  acceptRequest: (requestId: string) => Promise<void>;
+  acceptRequest: (requestId: string) => Promise<Friend | undefined>;
   declineRequest: (requestId: string) => Promise<void>;
   withdrawRequest: (requestId: string) => Promise<void>;
   getFriends: () => Promise<void>;

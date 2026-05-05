@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Check, Clock, Loader2, MessageCircle, UserPlus } from "lucide-react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { Check, Clock, KeyRound, Loader2, MessageCircle, UserPlus } from "lucide-react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 
@@ -17,6 +17,8 @@ import { useChatStore } from "@/stores/useChatStore";
 import { useFriendStore } from "@/stores/useFriendStore";
 import type { RelationshipStatus, User } from "@/types/user";
 import ProfileCard from "./ProfileCard";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
 
 interface UserProfileDialogProps {
   open: boolean;
@@ -33,6 +35,75 @@ const statusLabel: Record<RelationshipStatus, string> = {
   none: "Thêm bạn",
 };
 
+const ChangePasswordSection = () => {
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault();
+
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      toast.error("Vui lòng nhập đủ thông tin đổi mật khẩu.");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      toast.error("Mật khẩu mới phải có ít nhất 6 ký tự.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error("Mật khẩu xác nhận không khớp.");
+      return;
+    }
+
+    // TODO: call API POST /auth/change-password when backend endpoint is available.
+    toast.info("Backend chưa có endpoint đổi mật khẩu. UI đã sẵn sàng để nối API.");
+  };
+
+  return (
+    <form className="space-y-3 border-t border-border/60 p-4" onSubmit={handleSubmit}>
+      <div className="flex items-center gap-2 text-sm font-semibold">
+        <KeyRound className="size-4 text-primary" />
+        Đổi mật khẩu
+      </div>
+      <div className="grid gap-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="profile-old-password">Mật khẩu cũ</Label>
+          <Input
+            id="profile-old-password"
+            type="password"
+            value={oldPassword}
+            onChange={(event) => setOldPassword(event.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="profile-new-password">Mật khẩu mới</Label>
+          <Input
+            id="profile-new-password"
+            type="password"
+            value={newPassword}
+            onChange={(event) => setNewPassword(event.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="profile-confirm-password">Xác nhận mật khẩu</Label>
+          <Input
+            id="profile-confirm-password"
+            type="password"
+            value={confirmPassword}
+            onChange={(event) => setConfirmPassword(event.target.value)}
+          />
+        </div>
+      </div>
+      <Button type="submit" className="w-full sm:w-auto">
+        Lưu
+      </Button>
+    </form>
+  );
+};
+
 const UserProfileDialog = ({
   open,
   onOpenChange,
@@ -42,13 +113,6 @@ const UserProfileDialog = ({
   const navigate = useNavigate();
   const { user: currentUser } = useAuthStore();
   const { addFriend, acceptRequest } = useFriendStore();
-  const {
-    conversations,
-    messages,
-    setActiveConversation,
-    fetchMessages,
-    createConversation,
-  } = useChatStore();
   const [profileUser, setProfileUser] = useState<User | null>(initialUser ?? null);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -100,24 +164,34 @@ const UserProfileDialog = ({
     return profileUser.relationshipStatus ?? "none";
   }, [currentUser?._id, profileUser]);
 
-  const existingDirectConversation = useMemo(() => {
-    if (!profileUser) return null;
-
-    return (
-      conversations.find(
-        (conversation) =>
-          conversation.type === "direct" &&
-          conversation.participants.some(
-            (participant) => participant._id === profileUser._id
-          )
-      ) ?? null
-    );
-  }, [conversations, profileUser]);
-
   const canMessage = relationshipStatus === "friends";
   const canSendRequest = relationshipStatus === "none";
   const canAcceptRequest =
     relationshipStatus === "request_received" && Boolean(profileUser?.friendRequestId);
+
+  const openDirectConversation = async (targetUserId: string) => {
+    const chatState = useChatStore.getState();
+    const existingConversation = chatState.conversations.find(
+      (conversation) =>
+        conversation.type === "direct" &&
+        conversation.participants.some(
+          (participant) => participant._id === targetUserId
+        )
+    );
+
+    if (existingConversation) {
+      chatState.setActiveConversation(existingConversation._id);
+
+      if (!chatState.messages[existingConversation._id]) {
+        await chatState.fetchMessages(existingConversation._id);
+      }
+    } else {
+      await chatState.createConversation("direct", "", [targetUserId]);
+    }
+
+    onOpenChange(false);
+    navigate("/");
+  };
 
   const handleFriendAction = async () => {
     if (!profileUser || relationshipStatus === "self") {
@@ -131,6 +205,7 @@ const UserProfileDialog = ({
         await acceptRequest(profileUser.friendRequestId);
         setProfileUser({ ...profileUser, relationshipStatus: "friends" });
         toast.success("Đã chấp nhận lời mời kết bạn");
+        await openDirectConversation(profileUser._id);
         return;
       }
 
@@ -155,17 +230,7 @@ const UserProfileDialog = ({
     try {
       setActionLoading(true);
 
-      if (existingDirectConversation) {
-        setActiveConversation(existingDirectConversation._id);
-        if (!messages[existingDirectConversation._id]) {
-          await fetchMessages(existingDirectConversation._id);
-        }
-      } else {
-        await createConversation("direct", "", [profileUser._id]);
-      }
-
-      onOpenChange(false);
-      navigate("/");
+      await openDirectConversation(profileUser._id);
     } catch (error) {
       console.error(error);
       toast.error("Không mở được cuộc trò chuyện");
@@ -210,6 +275,7 @@ const UserProfileDialog = ({
                   variant={canMessage ? "default" : "outline"}
                   onClick={handleMessage}
                   disabled={!canMessage || actionLoading}
+                  title="Mở cuộc trò chuyện"
                 >
                   <MessageCircle className="size-4" />
                   Nhắn tin
@@ -219,6 +285,7 @@ const UserProfileDialog = ({
                   type="button"
                   variant={canSendRequest || canAcceptRequest ? "default" : "outline"}
                   onClick={handleFriendAction}
+                  title="Kết bạn hoặc chấp nhận lời mời"
                   disabled={
                     actionLoading ||
                     relationshipStatus === "self" ||
@@ -229,6 +296,11 @@ const UserProfileDialog = ({
                   {friendButtonIcon()}
                   {canAcceptRequest ? "Chấp nhận lời mời" : statusLabel[relationshipStatus]}
                 </Button>
+                {relationshipStatus === "self" && (
+                  <div className="sm:col-span-2">
+                    <ChangePasswordSection />
+                  </div>
+                )}
               </div>
             )}
           </div>

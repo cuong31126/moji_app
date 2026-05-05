@@ -10,6 +10,7 @@ import { useSocketStore } from "@/stores/useSocketStore";
 import { toast } from "sonner";
 import { chatService } from "@/services/chatService";
 import { aiService } from "@/services/aiService";
+import { notifyChatEvent } from "@/lib/chatAlerts";
 
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 
@@ -17,7 +18,21 @@ const createClientId = () =>
   globalThis.crypto?.randomUUID?.() ??
   `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-const MessageInput = ({ selectedConvo }: { selectedConvo: Conversation }) => {
+const getReplyPreviewText = (message: Message) => {
+  if (message.content) return message.content;
+  if (message.imgUrl) return "Đã gửi một ảnh";
+  return "Tin nhắn";
+};
+
+const MessageInput = ({
+  selectedConvo,
+  replyToMessage,
+  onCancelReply,
+}: {
+  selectedConvo: Conversation;
+  replyToMessage: Message | null;
+  onCancelReply: () => void;
+}) => {
   const { user } = useAuthStore();
   const {
     addOptimisticMessage,
@@ -32,6 +47,21 @@ const MessageInput = ({ selectedConvo }: { selectedConvo: Conversation }) => {
   const [emojiError, setEmojiError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const replySenderName = useMemo(() => {
+    if (!replyToMessage) {
+      return "";
+    }
+
+    if (replyToMessage.senderId === user?._id) {
+      return "Bạn";
+    }
+
+    return (
+      selectedConvo.participants.find(
+        (participant) => participant._id === replyToMessage.senderId
+      )?.displayName || "Moji"
+    );
+  }, [replyToMessage, selectedConvo.participants, user?._id]);
 
   const previewUrl = useMemo(
     () => (imageFile ? URL.createObjectURL(imageFile) : null),
@@ -110,6 +140,7 @@ const MessageInput = ({ selectedConvo }: { selectedConvo: Conversation }) => {
   const sendMessage = async () => {
     const text = value.trim();
     const file = imageFile;
+    const reply = replyToMessage;
 
     if (!text && !file) return;
 
@@ -123,6 +154,15 @@ const MessageInput = ({ selectedConvo }: { selectedConvo: Conversation }) => {
       senderId: user._id,
       content: text || null,
       imgUrl: localImageUrl,
+      replyToMessageId: reply?._id ?? null,
+      replyTo: reply
+        ? {
+            _id: reply._id,
+            content: reply.content,
+            imgUrl: reply.imgUrl,
+            senderId: reply.senderId,
+          }
+        : null,
       messageType: file && !text ? "image" : "text",
       createdAt,
       isOwn: true,
@@ -134,6 +174,7 @@ const MessageInput = ({ selectedConvo }: { selectedConvo: Conversation }) => {
     setImageFile(null);
     setSuggestedEmojis([]);
     setEmojiError("");
+    onCancelReply();
     focusMessageInput();
 
     void (async () => {
@@ -150,10 +191,16 @@ const MessageInput = ({ selectedConvo }: { selectedConvo: Conversation }) => {
           conversationId: selectedConvo._id,
           content: text,
           imgUrl,
+          replyToMessageId: reply?._id,
           clientId,
         });
 
         confirmOptimisticMessage(clientId, sentMessage);
+        notifyChatEvent({
+          title: "Tin nhắn đã gửi",
+          body: sentMessage.content || (sentMessage.imgUrl ? "Đã gửi một ảnh" : ""),
+          conversationId: selectedConvo._id,
+        });
 
         if (localImageUrl) {
           URL.revokeObjectURL(localImageUrl);
@@ -175,6 +222,28 @@ const MessageInput = ({ selectedConvo }: { selectedConvo: Conversation }) => {
 
   return (
     <div className="bg-background p-3">
+      {replyToMessage && (
+        <div className="mb-2 flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-primary">
+              Đang trả lời {replySenderName}
+            </p>
+            <p className="line-clamp-2 text-sm text-muted-foreground">
+              {getReplyPreviewText(replyToMessage)}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-7 rounded-full"
+            onClick={onCancelReply}
+          >
+            <X className="size-3.5" />
+          </Button>
+        </div>
+      )}
+
       {previewUrl && (
         <div className="mb-2 flex items-end gap-2">
           <div className="relative max-w-40 overflow-hidden rounded-md border border-border/60 bg-muted">

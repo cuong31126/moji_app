@@ -1316,20 +1316,20 @@ const EcoMapPage = () => {
         </>
       )}
 
-      <div className="absolute bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] right-3 z-[450] flex flex-col gap-3 sm:bottom-5 sm:right-4">
+      <div className="absolute bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] right-3 z-[450] flex flex-col gap-2 sm:bottom-5 sm:right-4">
         <Button
           type="button"
           variant="secondary"
           size="icon"
-          className="size-12 rounded-full border border-border/80 bg-background/95 shadow-soft backdrop-blur"
+          className="size-10 rounded-full border border-border/80 bg-background/95 shadow-soft backdrop-blur"
           onClick={handleLocateMe}
           disabled={locating}
           title="Lấy vị trí hiện tại"
         >
           {locating ? (
-            <Loader2 className="size-5 animate-spin" />
+            <Loader2 className="size-4 animate-spin" />
           ) : (
-            <Crosshair className="size-5" />
+            <Crosshair className="size-4" />
           )}
         </Button>
       </div>
@@ -1343,18 +1343,18 @@ const EcoMapPage = () => {
         Báo rác
       </Button>
 
-      <div className="absolute bottom-5 left-4 z-[440] hidden w-72 rounded-2xl border border-border/70 bg-background/95 p-3 shadow-soft backdrop-blur lg:block">
+      <div className="absolute bottom-5 left-4 z-[440] hidden max-h-[34vh] w-60 overflow-hidden rounded-xl border border-border/70 bg-background/95 p-2 shadow-soft backdrop-blur lg:block">
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-foreground">Gần tôi</h2>
-          <Navigation className="size-4 text-primary" />
+          <h2 className="text-xs font-semibold text-foreground">Gần tôi</h2>
+          <Navigation className="size-3.5 text-primary" />
         </div>
         {nearbyReports.length > 0 ? (
-          <div className="space-y-2">
+          <div className="max-h-[28vh] space-y-1 overflow-y-auto pr-1">
             {nearbyReports.map((report) => (
               <button
                 key={report._id}
                 type="button"
-                className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition hover:bg-muted"
+                className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition hover:bg-muted"
                 onClick={() => {
                   handleSelectReport(report);
                   setFlyTarget({
@@ -1366,7 +1366,7 @@ const EcoMapPage = () => {
               >
                 <span
                   className={cn(
-                    "size-3 rounded-full",
+                    "size-2.5 rounded-full",
                     report.status === "ACTIVE" && "bg-red-500",
                     report.status === "VERIFIED" && "bg-orange-500",
                     report.status === "CLEANUP_PENDING" && "bg-sky-500",
@@ -1374,10 +1374,10 @@ const EcoMapPage = () => {
                   )}
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">
+                  <span className="block truncate text-xs font-medium">
                     {report.title}
                   </span>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-[11px] text-muted-foreground">
                     {formatDistance(report.distanceMeters)}
                   </span>
                 </span>

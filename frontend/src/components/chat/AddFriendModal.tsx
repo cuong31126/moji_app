@@ -17,7 +17,7 @@ import type { AddFriendFormValues } from "@/types/form";
 import UserProfileDialog from "../profile/UserProfileDialog";
 
 const getErrorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "Lỗi xảy ra. Hãy thử lại";
+  error instanceof Error ? error.message : "Loi xay ra. Hay thu lai";
 
 const AddFriendModal = () => {
   const [open, setOpen] = useState(false);
@@ -44,12 +44,15 @@ const AddFriendModal = () => {
     const query = usernameValue?.trim();
 
     if (!open || isFound || !query) {
-      setSuggestions([]);
-      if (!query) {
-        setIsFound(null);
-        setSearchedUsername("");
-      }
-      return;
+      const timer = window.setTimeout(() => {
+        setSuggestions([]);
+        if (!query) {
+          setIsFound(null);
+          setSearchedUsername("");
+        }
+      }, 0);
+
+      return () => window.clearTimeout(timer);
     }
 
     const timer = window.setTimeout(async () => {
@@ -135,15 +138,20 @@ const AddFriendModal = () => {
       }}
     >
       <DialogTrigger asChild>
-        <div className="flex justify-center items-center size-5 rounded-full hover:bg-sidebar-accent cursor-pointer z-10">
+        <button
+          type="button"
+          title="Gửi lời mời kết bạn"
+          className="relative z-10 flex size-7 cursor-pointer items-center justify-center rounded-full bg-primary/15 text-primary ring-1 ring-primary/25 transition hover:bg-primary hover:text-primary-foreground"
+        >
           <UserPlus className="size-4" />
+          <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-emerald-500 ring-2 ring-sidebar" />
           <span className="sr-only">Kết bạn</span>
-        </div>
+        </button>
       </DialogTrigger>
 
       <DialogContent className="max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] overflow-hidden border-none p-4 sm:max-w-[425px] sm:p-6">
         <DialogHeader>
-          <DialogTitle>Kết Bạn</DialogTitle>
+          <DialogTitle>Kết bạn</DialogTitle>
         </DialogHeader>
 
         {!isFound && (

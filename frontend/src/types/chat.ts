@@ -42,6 +42,17 @@ export interface MessageReaction {
 
 export type MessageStatus = "sending" | "sent" | "error";
 
+export interface MessageReplyPreview {
+  _id: string;
+  content?: string | null;
+  imgUrl?: string | null;
+  senderId?: string;
+  sender?: {
+    _id?: string;
+    displayName?: string;
+  };
+}
+
 export interface Conversation {
   _id: string;
   type: "direct" | "group";
@@ -91,6 +102,8 @@ export interface Message {
   senderId: string;
   content: string | null;
   imgUrl?: string | null;
+  replyToMessageId?: string | null;
+  replyTo?: MessageReplyPreview | string | null;
   messageType?: "text" | "image" | "trash_report" | "system";
   trashReport?: TrashReport | string | null;
   isRevoked?: boolean;
@@ -106,5 +119,6 @@ export interface SendSocketMessageInput {
   conversationId: string;
   content?: string;
   imgUrl?: string;
+  replyToMessageId?: string;
   clientId: string;
 }

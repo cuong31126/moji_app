@@ -1,7 +1,9 @@
 import {
   Camera,
   Check,
+  Copy,
   Info,
+  Link as LinkIcon,
   Loader2,
   LogOut,
   Save,
@@ -216,6 +218,15 @@ const ChatDetailsContent = ({
     (invite) =>
       invite.conversationId === chat._id || invite.conversation?._id === chat._id
   );
+  const groupShareLink = useMemo(() => {
+    if (typeof window === "undefined") {
+      return `/chat?conversationId=${chat._id}`;
+    }
+
+    return `${window.location.origin}/chat?conversationId=${encodeURIComponent(
+      chat._id
+    )}`;
+  }, [chat._id]);
   const messageResults = useMemo(() => {
     const query = messageSearch.trim().toLowerCase();
 
@@ -316,6 +327,16 @@ const ChatDetailsContent = ({
 
     if (friends.length === 0) {
       await getFriends();
+    }
+  };
+
+  const handleCopyGroupLink = async () => {
+    try {
+      await navigator.clipboard.writeText(groupShareLink);
+      toast.success("Đã sao chép link nhóm.");
+    } catch (error) {
+      console.error("Không sao chép được link nhóm", error);
+      toast.error("Không sao chép được link nhóm.");
     }
   };
 
@@ -641,6 +662,41 @@ const ChatDetailsContent = ({
                   </Button>
                 </div>
               </form>
+              <div className="space-y-2 rounded-lg border border-border/70 p-3">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <LinkIcon className="size-4 text-primary" />
+                  Link chia sẻ nhóm
+                </div>
+                <div
+                  className="truncate rounded-md bg-muted/60 px-2 py-1.5 font-mono text-xs text-muted-foreground"
+                  title={groupShareLink}
+                >
+                  {groupShareLink}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 rounded-lg"
+                    onClick={handleCopyGroupLink}
+                  >
+                    <Copy className="size-4" />
+                    Sao chép link
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="flex-1 rounded-lg"
+                    disabled={loading}
+                    onClick={handleOpenInvite}
+                  >
+                    <UserPlus className="size-4" />
+                    Mời vào nhóm
+                  </Button>
+                </div>
+              </div>
               {!isAdmin && (
                 <p className="px-1 text-xs text-muted-foreground">
                   Chỉ quản trị viên được đổi tên và ảnh nhóm.

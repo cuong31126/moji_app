@@ -112,6 +112,8 @@ export const useFriendStore = create<FriendState>((set, get) => ({
       } catch (error) {
         console.error("Error while refreshing friends after accepting request", error);
       }
+
+      return acceptedFriend;
     } catch (error) {
       console.error("Error while accepting friend request", error);
       throw error;

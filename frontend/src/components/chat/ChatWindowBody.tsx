@@ -1,10 +1,11 @@
 import { useChatStore } from "@/stores/useChatStore";
 import ChatWelcomeScreen from "./ChatWelcomeScreen";
 import MessageItem from "./MessageItem";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef } from "react";
 import InfiniteScroll from "react-infinite-scroll-component";
+import type { Message } from "@/types/chat";
 
-const ChatWindowBody = () => {
+const ChatWindowBody = ({ onReply }: { onReply: (message: Message) => void }) => {
   const {
     activeConversationId,
     conversations,
@@ -12,31 +13,19 @@ const ChatWindowBody = () => {
     fetchMessages,
     revokeMessage,
   } = useChatStore();
-  const [lastMessageStatus, setLastMessageStatus] = useState<"delivered" | "seen">(
-    "delivered"
-  );
-
   const messages = allMessages[activeConversationId!]?.items ?? [];
   const reversedMessages = [...messages].reverse();
   const hasMore = allMessages[activeConversationId!]?.hasMore ?? false;
   const selectedConvo = conversations.find((c) => c._id === activeConversationId);
+  const lastMessageStatus: "delivered" | "seen" =
+    selectedConvo?.lastMessage && (selectedConvo.seenBy ?? []).length > 0
+      ? "seen"
+      : "delivered";
   const key = `chat-scroll-${activeConversationId}`;
 
   // ref
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // seen status
-  useEffect(() => {
-    const lastMessage = selectedConvo?.lastMessage;
-    if (!lastMessage) {
-      return;
-    }
-
-    const seenBy = selectedConvo?.seenBy ?? [];
-
-    setLastMessageStatus(seenBy.length > 0 ? "seen" : "delivered");
-  }, [selectedConvo]);
 
   // kéo xuống dưới khi load convo
   useLayoutEffect(() => {
@@ -84,7 +73,7 @@ const ChatWindowBody = () => {
         container.scrollTop = scrollTop;
       });
     }
-  }, [messages.length]);
+  }, [key, messages.length]);
 
   if (!selectedConvo) {
     return <ChatWelcomeScreen />;
@@ -129,6 +118,7 @@ const ChatWindowBody = () => {
               selectedConvo={selectedConvo}
               lastMessageStatus={lastMessageStatus}
               onRevoke={revokeMessage}
+              onReply={onReply}
             />
           ))}
         </InfiniteScroll>

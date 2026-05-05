@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { aiService } from "@/services/aiService";
 import { useChatStore } from "@/stores/useChatStore";
 import type { Message } from "@/types/chat";
+import { requestChatNotificationPermission } from "@/lib/chatAlerts";
 import ChatWelcomeScreen from "./ChatWelcomeScreen";
 import { SidebarInset } from "../ui/sidebar";
 import ChatWindowHeader from "./ChatWindowHeader";
@@ -27,6 +28,7 @@ const ChatWindowLayout = () => {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState("");
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
 
   const selectedConvo =
     conversations.find((c) => c._id === activeConversationId) ?? null;
@@ -43,6 +45,28 @@ const ChatWindowLayout = () => {
   );
   const summarizableCount = summarizableMessages.length;
   const canSummarize = summarizableCount >= 10;
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      return;
+    }
+
+    if (Notification.permission !== "default") {
+      return;
+    }
+
+    const requestPermission = () => {
+      void requestChatNotificationPermission();
+    };
+
+    window.addEventListener("pointerdown", requestPermission, { once: true });
+    window.addEventListener("keydown", requestPermission, { once: true });
+
+    return () => {
+      window.removeEventListener("pointerdown", requestPermission);
+      window.removeEventListener("keydown", requestPermission);
+    };
+  }, []);
 
   const participantNameMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -75,6 +99,7 @@ const ChatWindowLayout = () => {
     setSummaryError("");
     setSummaryOpen(false);
     setDetailsOpen(false);
+    setReplyToMessage(null);
   }, [activeConversationId]);
 
   const handleSummarizeChat = async () => {
@@ -187,10 +212,14 @@ const ChatWindowLayout = () => {
           </div>
 
           <div className="flex-1 overflow-y-auto bg-primary-foreground">
-            <ChatWindowBody />
+            <ChatWindowBody onReply={setReplyToMessage} />
           </div>
 
-          <MessageInput selectedConvo={selectedConvo} />
+          <MessageInput
+            selectedConvo={selectedConvo}
+            replyToMessage={replyToMessage}
+            onCancelReply={() => setReplyToMessage(null)}
+          />
         </section>
 
         <ChatDetailsPanel

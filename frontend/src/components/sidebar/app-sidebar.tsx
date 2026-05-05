@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/sidebar";
 import { Leaf, Moon, Sun } from "lucide-react";
 import { Switch } from "../ui/switch";
-import CreateNewChat from "../chat/CreateNewChat";
 import NewGroupChatModal from "../chat/NewGroupChatModal";
 import GroupChatList from "../chat/GroupChatList";
 import AddFriendModal from "../chat/AddFriendModal";
@@ -93,13 +92,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 </Link>
               </SidebarMenuButton>
             </div>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* New Chat */}
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <CreateNewChat />
           </SidebarGroupContent>
         </SidebarGroup>
 

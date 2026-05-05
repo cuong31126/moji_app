@@ -1,18 +1,47 @@
-import { useFriendStore } from "@/stores/useFriendStore";
-import FriendRequestItem from "./FriendRequestItem";
-import { Button } from "../ui/button";
+import { useNavigate } from "react-router";
 import { toast } from "sonner";
 
+import { useChatStore } from "@/stores/useChatStore";
+import { useFriendStore } from "@/stores/useFriendStore";
+import { Button } from "../ui/button";
+import FriendRequestItem from "./FriendRequestItem";
+
 const getErrorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "Lỗi xảy ra. Hãy thử lại";
+  error instanceof Error ? error.message : "Lỗi xảy ra. Hay thử lại";
 
 const ReceivedRequests = () => {
   const { acceptRequest, declineRequest, loading, receivedList } = useFriendStore();
+  const navigate = useNavigate();
+
+  const openDirectChat = async (friendId: string) => {
+    const chatState = useChatStore.getState();
+    const existingConversation = chatState.conversations.find(
+      (conversation) =>
+        conversation.type === "direct" &&
+        conversation.participants.some((participant) => participant._id === friendId)
+    );
+
+    if (existingConversation) {
+      chatState.setActiveConversation(existingConversation._id);
+
+      if (!chatState.messages[existingConversation._id]) {
+        await chatState.fetchMessages(existingConversation._id);
+      }
+    } else {
+      await chatState.createConversation("direct", "", [friendId]);
+    }
+
+    navigate("/chat");
+  };
 
   const handleAccept = async (requestId: string) => {
     try {
-      await acceptRequest(requestId);
+      const friend = await acceptRequest(requestId);
       toast.success("Đã đồng ý kết bạn thành công");
+
+      if (friend?._id) {
+        await openDirectChat(friend._id);
+      }
     } catch (error) {
       console.error(error);
       toast.error(getErrorMessage(error));
@@ -38,7 +67,7 @@ const ReceivedRequests = () => {
   }
 
   return (
-    <div className="space-y-3 mt-4">
+    <div className="mt-4 space-y-3">
       {receivedList.map((req) => (
         <FriendRequestItem
           key={req._id}

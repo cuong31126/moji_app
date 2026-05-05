@@ -4,6 +4,7 @@ import type { SocketState } from "@/types/store";
 import { toast } from "sonner";
 import type { Message, SendSocketMessageInput } from "@/types/chat";
 import { getAuthState, getChatState, registerSocketStore } from "./storeBridge";
+import { notifyChatEvent } from "@/lib/chatAlerts";
 
 const baseURL = import.meta.env.VITE_SOCKET_URL;
 
@@ -64,10 +65,25 @@ export const useSocketStore = create<SocketState>((set, get) => ({
 
       socket.on("new-message", ({ message, conversation, unreadCounts }) => {
         void (async () => {
+          const currentUserId = getAuthState()?.user?._id;
           const chatState = getChatState();
           if (!chatState) return;
 
           await chatState.addMessage(message);
+
+          if (message.senderId !== currentUserId) {
+            const sender = conversation.participants?.find(
+              (participant: { _id: string }) => participant._id === message.senderId
+            );
+            notifyChatEvent({
+              title:
+                conversation.type === "group"
+                  ? conversation.group?.name || "Tin nhắn nhóm mới"
+                  : sender?.displayName || "Tin nhắn mới",
+              body: message.content || (message.imgUrl ? "Đã gửi một ảnh" : "Tin nhắn mới"),
+              conversationId: message.conversationId,
+            });
+          }
 
           const lastMessage = {
             _id: conversation.lastMessage._id,

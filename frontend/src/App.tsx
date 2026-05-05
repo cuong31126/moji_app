@@ -53,6 +53,10 @@ function App() {
               element={<ChatAppPage />}
             />
             <Route
+              path="/chat"
+              element={<ChatAppPage />}
+            />
+            <Route
               path="/map"
               element={<ChatAppPage view="map" />}
             />
