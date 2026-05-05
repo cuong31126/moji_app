@@ -3,18 +3,9 @@ import { io, type Socket } from "socket.io-client";
 import type { SocketState } from "@/types/store";
 import { toast } from "sonner";
 import type { Message, SendSocketMessageInput } from "@/types/chat";
+import { getAuthState, getChatState, registerSocketStore } from "./storeBridge";
 
 const baseURL = import.meta.env.VITE_SOCKET_URL;
-
-const getAuthState = async () => {
-  const { useAuthStore } = await import("./useAuthStore");
-  return useAuthStore.getState();
-};
-
-const getChatState = async () => {
-  const { useChatStore } = await import("./useChatStore");
-  return useChatStore.getState();
-};
 
 export const useSocketStore = create<SocketState>((set, get) => ({
   socket: null,
@@ -51,10 +42,10 @@ export const useSocketStore = create<SocketState>((set, get) => ({
   },
   connectSocket: () => {
     void (async () => {
-      const accessToken = (await getAuthState()).accessToken;
+      const accessToken = getAuthState()?.accessToken;
       const existingSocket = get().socket;
 
-      if (existingSocket) return;
+      if (existingSocket || !accessToken) return;
 
       const socket: Socket = io(baseURL, {
         auth: { token: accessToken },
@@ -73,7 +64,9 @@ export const useSocketStore = create<SocketState>((set, get) => ({
 
       socket.on("new-message", ({ message, conversation, unreadCounts }) => {
         void (async () => {
-          const chatState = await getChatState();
+          const chatState = getChatState();
+          if (!chatState) return;
+
           await chatState.addMessage(message);
 
           const lastMessage = {
@@ -93,10 +86,11 @@ export const useSocketStore = create<SocketState>((set, get) => ({
             unreadCounts,
           };
 
-          const latestChatState = await getChatState();
+          const latestChatState = getChatState();
+          if (!latestChatState) return;
 
           if (latestChatState.activeConversationId === message.conversationId) {
-            latestChatState.markAsSeen();
+            void latestChatState.markAsSeen();
           }
 
           latestChatState.updateConversation(updatedConversation);
@@ -113,13 +107,15 @@ export const useSocketStore = create<SocketState>((set, get) => ({
             seenBy: conversation.seenBy,
           };
 
-          (await getChatState()).updateConversation(updated);
+          getChatState()?.updateConversation(updated);
         })();
       });
 
       socket.on("message-revoked", ({ message, conversation }) => {
         void (async () => {
-          const chatState = await getChatState();
+          const chatState = getChatState();
+          if (!chatState) return;
+
           chatState.updateMessage(message);
 
           if (conversation) {
@@ -130,7 +126,7 @@ export const useSocketStore = create<SocketState>((set, get) => ({
 
       socket.on("message:reaction_updated", ({ conversationId, messageId, reactions }) => {
         void (async () => {
-          (await getChatState()).updateMessageReactions(
+          getChatState()?.updateMessageReactions(
             conversationId,
             messageId,
             reactions
@@ -141,20 +137,22 @@ export const useSocketStore = create<SocketState>((set, get) => ({
       socket.on("group-invite:created", () => {
         void (async () => {
           toast.info("Có lời mời vào nhóm chat");
-          (await getChatState()).fetchGroupInvites();
+          void getChatState()?.fetchGroupInvites();
         })();
       });
 
       socket.on("group-invite:needs_approval", () => {
         void (async () => {
           toast.info("Có lời mời nhóm đang chờ admin duyệt");
-          (await getChatState()).fetchGroupInvites();
+          void getChatState()?.fetchGroupInvites();
         })();
       });
 
       socket.on("group-invite:updated", ({ invite } = {}) => {
         void (async () => {
-          const chatState = await getChatState();
+          const chatState = getChatState();
+          if (!chatState) return;
+
           if (invite) {
             chatState.applyGroupInviteUpdate(invite);
             return;
@@ -166,7 +164,9 @@ export const useSocketStore = create<SocketState>((set, get) => ({
 
       socket.on("group-invite:approved", ({ invite, conversation }) => {
         void (async () => {
-          const chatState = await getChatState();
+          const chatState = getChatState();
+          if (!chatState) return;
+
           if (conversation) {
             chatState.addConvo(conversation);
             socket.emit("join-conversation", conversation._id);
@@ -182,19 +182,19 @@ export const useSocketStore = create<SocketState>((set, get) => ({
 
       socket.on("conversation:updated", (conversation) => {
         void (async () => {
-          (await getChatState()).updateConversation(conversation);
+          getChatState()?.updateConversation(conversation);
         })();
       });
 
       socket.on("conversation:removed", ({ conversationId }) => {
         void (async () => {
-          (await getChatState()).removeConversation(conversationId);
+          getChatState()?.removeConversation(conversationId);
         })();
       });
 
       socket.on("new-group", (conversation) => {
         void (async () => {
-          (await getChatState()).addConvo(conversation);
+          getChatState()?.addConvo(conversation);
           socket.emit("join-conversation", conversation._id);
         })();
       });
@@ -208,3 +208,5 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     }
   },
 }));
+
+registerSocketStore(useSocketStore);

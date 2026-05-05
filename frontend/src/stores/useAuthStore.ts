@@ -3,11 +3,10 @@ import { toast } from "sonner";
 import { authService } from "@/services/authService";
 import type { AuthState } from "@/types/store";
 import { persist } from "zustand/middleware";
+import { getChatState, registerAuthStore } from "./storeBridge";
 
 const resetChatState = () => {
-  void import("./useChatStore").then(({ useChatStore }) => {
-    useChatStore.getState().reset();
-  });
+  getChatState()?.reset();
 };
 
 export const useAuthStore = create<AuthState>()(
@@ -51,8 +50,7 @@ export const useAuthStore = create<AuthState>()(
           get().setAccessToken(accessToken);
           get().setUser(user);
 
-          const { useChatStore } = await import("./useChatStore");
-          useChatStore.getState().fetchConversations();
+          void getChatState()?.fetchConversations();
           toast.success("Chào mừng bạn quay lại với Moji");
         } catch (error) {
           console.error(error);
@@ -114,3 +112,5 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
+
+registerAuthStore(useAuthStore);

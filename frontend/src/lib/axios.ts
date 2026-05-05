@@ -1,17 +1,13 @@
 import axios from "axios";
+import { getAuthState } from "@/stores/storeBridge";
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
   withCredentials: true,
 });
 
-const getAuthStore = async () => {
-  const { useAuthStore } = await import("@/stores/useAuthStore");
-  return useAuthStore;
-};
-
 api.interceptors.request.use(async (config) => {
-  const { accessToken } = (await getAuthStore()).getState();
+  const accessToken = getAuthState()?.accessToken;
 
   if (accessToken) {
     config.headers.Authorization = `Bearer ${accessToken}`;
@@ -46,11 +42,11 @@ api.interceptors.response.use(
       try {
         const res = await api.post("/auth/refresh");
         const { accessToken: newAccessToken, user } = res.data;
-        const authStore = await getAuthStore();
+        const authState = getAuthState();
 
-        authStore.getState().setAccessToken(newAccessToken);
+        authState?.setAccessToken(newAccessToken);
         if (user) {
-          authStore.getState().setUser(user);
+          authState?.setUser(user);
         }
 
         originalRequest.headers = originalRequest.headers || {};
@@ -58,8 +54,7 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         console.warn("[axios] Refresh failed while retrying request", refreshError);
-        const authStore = await getAuthStore();
-        authStore.getState().clearState();
+        getAuthState()?.clearState();
         return Promise.reject(refreshError);
       }
     }

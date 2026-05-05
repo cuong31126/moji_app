@@ -2,11 +2,7 @@ import { chatService } from "@/services/chatService";
 import type { ChatState } from "@/types/store";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-
-const getAuthState = async () => {
-  const { useAuthStore } = await import("./useAuthStore");
-  return useAuthStore.getState();
-};
+import { getAuthState, getSocketState, registerChatStore } from "./storeBridge";
 
 const getMessageKey = (message: { _id?: string; clientId?: string }) =>
   message.clientId || message._id || "";
@@ -96,7 +92,7 @@ export const useChatStore = create<ChatState>()(
       },// }, Xử lý tin nhắn cũ - Phân trang
       fetchMessages: async (conversationId) => {
         const { activeConversationId, messages } = get();
-        const { user } = await getAuthState();
+        const user = getAuthState()?.user;
 
         const convoId = conversationId ?? activeConversationId;
 
@@ -274,7 +270,7 @@ export const useChatStore = create<ChatState>()(
       },
       addMessage: async (message) => {
         try {
-          const { user } = await getAuthState();
+          const user = getAuthState()?.user;
           const convoId = message.conversationId;
           const nextMessage = {
             ...message,
@@ -513,7 +509,7 @@ export const useChatStore = create<ChatState>()(
       },
       markAsSeen: async () => {
         try {
-          const { user } = await getAuthState();
+          const user = getAuthState()?.user;
           const { activeConversationId, conversations } = get();
 
           if (!activeConversationId || !user) {
@@ -574,8 +570,7 @@ export const useChatStore = create<ChatState>()(
 
           get().addConvo(conversation);
 
-          const { useSocketStore } = await import("./useSocketStore");
-          useSocketStore.getState().socket?.emit("join-conversation", conversation._id);
+          getSocketState()?.socket?.emit("join-conversation", conversation._id);
         } catch (error) {
           console.error("Lỗi xảy ra khi gọi createConversation trong store", error);
         } finally {
@@ -627,10 +622,10 @@ export const useChatStore = create<ChatState>()(
 
           if (result.conversation) {
             get().addConvo(result.conversation);
-            const { useSocketStore } = await import("./useSocketStore");
-            useSocketStore
-              .getState()
-              .socket?.emit("join-conversation", result.conversation._id);
+            getSocketState()?.socket?.emit(
+              "join-conversation",
+              result.conversation._id
+            );
           }
         } catch (error) {
           set(previous);
@@ -749,3 +744,5 @@ export const useChatStore = create<ChatState>()(
     }
   )
 );
+
+registerChatStore(useChatStore);
