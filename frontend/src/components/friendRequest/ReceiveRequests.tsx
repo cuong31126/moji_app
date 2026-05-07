@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 
-import { useChatStore } from "@/stores/useChatStore";
+import { openDirectConversation } from "@/lib/openDirectConversation";
 import { useFriendStore } from "@/stores/useFriendStore";
 import { Button } from "../ui/button";
 import FriendRequestItem from "./FriendRequestItem";
@@ -14,24 +14,8 @@ const ReceivedRequests = () => {
   const navigate = useNavigate();
 
   const openDirectChat = async (friendId: string) => {
-    const chatState = useChatStore.getState();
-    const existingConversation = chatState.conversations.find(
-      (conversation) =>
-        conversation.type === "direct" &&
-        conversation.participants.some((participant) => participant._id === friendId)
-    );
-
-    if (existingConversation) {
-      chatState.setActiveConversation(existingConversation._id);
-
-      if (!chatState.messages[existingConversation._id]) {
-        await chatState.fetchMessages(existingConversation._id);
-      }
-    } else {
-      await chatState.createConversation("direct", "", [friendId]);
-    }
-
-    navigate("/chat");
+    await openDirectConversation(friendId);
+    navigate("/");
   };
 
   const handleAccept = async (requestId: string) => {

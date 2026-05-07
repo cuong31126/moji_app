@@ -5,41 +5,55 @@ import { toast } from "sonner";
 import type { Message, SendSocketMessageInput } from "@/types/chat";
 import { getAuthState, getChatState, registerSocketStore } from "./storeBridge";
 import { notifyChatEvent } from "@/lib/chatAlerts";
+import { useFriendStore } from "./useFriendStore";
 
 const baseURL = import.meta.env.VITE_SOCKET_URL;
+let sendQueue = Promise.resolve();
+
+const emitChatMessage = (socket: Socket, input: SendSocketMessageInput) =>
+  new Promise<Message>((resolve, reject) => {
+    socket.timeout(30000).emit(
+      "message:send",
+      input,
+      (
+        error: Error | null,
+        ack?: { ok: boolean; message?: Message; error?: string }
+      ) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        if (!ack?.ok || !ack.message) {
+          reject(new Error(ack?.error || "Send message failed"));
+          return;
+        }
+
+        resolve(ack.message);
+      }
+    );
+  });
 
 export const useSocketStore = create<SocketState>((set, get) => ({
   socket: null,
   onlineUsers: [],
   sendChatMessage: (input: SendSocketMessageInput) => {
-    const socket = get().socket;
+    const task = sendQueue.then(() => {
+      const socket = get().socket;
 
-    if (!socket?.connected) {
-      return Promise.reject(new Error("Socket is not connected"));
-    }
+      if (!socket?.connected) {
+        throw new Error("Socket is not connected");
+      }
 
-    return new Promise<Message>((resolve, reject) => {
-      socket.timeout(12000).emit(
-        "message:send",
-        input,
-        (
-          error: Error | null,
-          ack?: { ok: boolean; message?: Message; error?: string }
-        ) => {
-          if (error) {
-            reject(error);
-            return;
-          }
-
-          if (!ack?.ok || !ack.message) {
-            reject(new Error(ack?.error || "Send message failed"));
-            return;
-          }
-
-          resolve(ack.message);
-        }
-      );
+      return emitChatMessage(socket, input);
     });
+
+    sendQueue = task.then(
+      () => undefined,
+      () => undefined
+    );
+
+    return task;
   },
   connectSocket: () => {
     void (async () => {
@@ -199,6 +213,39 @@ export const useSocketStore = create<SocketState>((set, get) => ({
       socket.on("conversation:updated", (conversation) => {
         void (async () => {
           getChatState()?.updateConversation(conversation);
+        })();
+      });
+
+      socket.on("conversation:created", (conversation) => {
+        void (async () => {
+          getChatState()?.addConvo(conversation);
+          socket.emit("join-conversation", conversation._id);
+        })();
+      });
+
+      socket.on("friend-request:created", () => {
+        void (async () => {
+          toast.info("Có lời mời kết bạn mới");
+          await useFriendStore.getState().getAllFriendRequests();
+        })();
+      });
+
+      socket.on("friend-request:updated", () => {
+        void (async () => {
+          await useFriendStore.getState().getAllFriendRequests();
+          await useFriendStore.getState().getFriends();
+        })();
+      });
+
+      socket.on("friendship:created", ({ conversation } = {}) => {
+        void (async () => {
+          await useFriendStore.getState().getAllFriendRequests();
+          await useFriendStore.getState().getFriends();
+
+          if (conversation) {
+            getChatState()?.addConvo(conversation);
+            socket.emit("join-conversation", conversation._id);
+          }
         })();
       });
 

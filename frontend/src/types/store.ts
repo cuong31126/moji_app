@@ -110,7 +110,7 @@ export interface ChatState {
     type: "group" | "direct",
     name: string,
     memberIds: string[]
-  ) => Promise<void>;
+  ) => Promise<Conversation | undefined>;
   fetchGroupInvites: () => Promise<void>;
   applyGroupInviteUpdate: (invite: GroupInvite) => void;
   acceptGroupInvite: (inviteId: string) => Promise<void>;

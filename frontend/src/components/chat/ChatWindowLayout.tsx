@@ -19,6 +19,7 @@ const ChatWindowLayout = () => {
   const {
     activeConversationId,
     conversations,
+    fetchMessages,
     messages,
     messageLoading: loading,
     markAsSeen,
@@ -83,6 +84,10 @@ const ChatWindowLayout = () => {
       return;
     }
 
+    if (!messages[selectedConvo._id]) {
+      void fetchMessages(selectedConvo._id);
+    }
+
     const markSeen = async () => {
       try {
         await markAsSeen();
@@ -92,7 +97,7 @@ const ChatWindowLayout = () => {
     };
 
     markSeen();
-  }, [markAsSeen, selectedConvo]);
+  }, [fetchMessages, markAsSeen, messages, selectedConvo]);
 
   useEffect(() => {
     setSummary("");

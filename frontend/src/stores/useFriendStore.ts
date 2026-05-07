@@ -1,6 +1,7 @@
 import { friendService } from "@/services/friendService";
 import type { FriendState } from "@/types/store";
 import { create } from "zustand";
+import { useChatStore } from "./useChatStore";
 
 export const useFriendStore = create<FriendState>((set, get) => ({
   friends: [],
@@ -54,6 +55,10 @@ export const useFriendStore = create<FriendState>((set, get) => ({
         }));
       }
 
+      if (result.conversation) {
+        useChatStore.getState().addConvo(result.conversation);
+      }
+
       return result.message;
     } catch (error) {
       console.error("Error while sending friend request", error);
@@ -86,8 +91,12 @@ export const useFriendStore = create<FriendState>((set, get) => ({
       const acceptedRequest = get().receivedList.find(
         (request) => request._id === requestId
       );
-      const newFriend = await friendService.acceptRequest(requestId);
-      const acceptedFriend = newFriend || acceptedRequest?.from;
+      const result = await friendService.acceptRequest(requestId);
+      const acceptedFriend = result.newFriend || acceptedRequest?.from;
+
+      if (result.conversation) {
+        useChatStore.getState().addConvo(result.conversation);
+      }
 
       set((state) => ({
         receivedList: state.receivedList.filter((request) => request._id !== requestId),

@@ -1,6 +1,12 @@
 import api from "@/lib/axios";
+import type { Conversation } from "@/types/chat";
 import type { User } from "@/types/user";
 import axios from "axios";
+
+interface AcceptFriendResponse {
+  newFriend?: User;
+  conversation?: Conversation;
+}
 
 const getApiErrorMessage = (error: unknown, fallback: string) => {
   if (axios.isAxiosError(error)) {
@@ -55,12 +61,12 @@ export const friendService = {
     }
   },
 
-  async acceptRequest(requestId: string) {
+  async acceptRequest(requestId: string): Promise<AcceptFriendResponse> {
     try {
       const res = await api.post(`/friends/requests/${requestId}/accept`);
-      return res.data.newFriend;
+      return res.data;
     } catch (error) {
-      throwFriendError(error, "Không chấp nhận được lời mời kết bạn");
+      return throwFriendError(error, "Không chấp nhận được lời mời kết bạn");
     }
   },
 

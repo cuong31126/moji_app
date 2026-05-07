@@ -1,7 +1,10 @@
 import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
+import User from "../models/User.js";
 import {
+  conversationPopulate,
   emitNewMessage,
+  formatConversationForClient,
   updateConversationAfterCreateMessage,
 } from "../utils/messageHelper.js";
 import { io } from "../socket/index.js";
@@ -158,13 +161,40 @@ export const sendDirectMessage = async (req, res) => {
     const senderId = req.user._id;
 
     let conversation;
+    let createdConversation = false;
 
     if (!content.trim() && !imgUrl) {
       return res.status(400).json({ message: "Thiếu nội dung" });
     }
 
+    const recipientObjectId = recipientId?.toString?.() || "";
+
+    if (
+      !recipientObjectId.match(/^[0-9a-fA-F]{24}$/) ||
+      recipientObjectId === senderId.toString()
+    ) {
+      return res.status(400).json({ message: "Người nhận không hợp lệ" });
+    }
+
+    const recipientExists = await User.exists({ _id: recipientObjectId });
+
+    if (!recipientExists) {
+      return res.status(404).json({ message: "Người dùng không tồn tại" });
+    }
+
     if (conversationId) {
-      conversation = await Conversation.findById(conversationId);
+      conversation = await Conversation.findOne({
+        _id: conversationId,
+        type: "direct",
+        "participants.userId": { $all: [senderId, recipientObjectId] },
+      });
+    }
+
+    if (!conversation) {
+      conversation = await Conversation.findOne({
+        type: "direct",
+        "participants.userId": { $all: [senderId, recipientObjectId] },
+      });
     }
 
     if (!conversation) {
@@ -172,11 +202,12 @@ export const sendDirectMessage = async (req, res) => {
         type: "direct",
         participants: [
           { userId: senderId, joinedAt: new Date() },
-          { userId: recipientId, joinedAt: new Date() },
+          { userId: recipientObjectId, joinedAt: new Date() },
         ],
         lastMessageAt: new Date(),
         unreadCounts: new Map(),
       });
+      createdConversation = true;
     }
 
     const message = await Message.create({
@@ -189,6 +220,15 @@ export const sendDirectMessage = async (req, res) => {
     updateConversationAfterCreateMessage(conversation, message, senderId);
 
     await conversation.save();
+
+    if (createdConversation) {
+      await conversation.populate(conversationPopulate);
+      const formattedConversation = formatConversationForClient(conversation);
+      io.to(recipientObjectId).emit(
+        "conversation:created",
+        formattedConversation
+      );
+    }
 
     emitNewMessage(io, conversation, message);
 

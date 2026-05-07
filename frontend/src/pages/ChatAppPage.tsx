@@ -2,10 +2,12 @@ import { lazy, Suspense, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import ChatWindowLayout from "@/components/chat/ChatWindowLayout";
+import IncomingInviteDialog from "@/components/notifications/IncomingInviteDialog";
 import { AppSidebar } from "@/components/sidebar/app-sidebar";
 import MapSkeleton from "@/components/skeleton/MapSkeleton";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { useChatStore } from "@/stores/useChatStore";
+import { useFriendStore } from "@/stores/useFriendStore";
 
 const EcoMapPage = lazy(() => import("@/components/map/EcoMapPage"));
 
@@ -22,11 +24,19 @@ const ChatAppPage = ({ view = "chat" }: { view?: "chat" | "map" }) => {
     conversations,
     convoLoading,
     fetchConversations,
+    fetchGroupInvites,
     fetchMessages,
     messages,
     setActiveConversation,
   } = useChatStore();
+  const { getAllFriendRequests } = useFriendStore();
   const requestedConversationId = searchParams.get("conversationId");
+
+  useEffect(() => {
+    void fetchConversations();
+    void fetchGroupInvites();
+    void getAllFriendRequests();
+  }, [fetchConversations, fetchGroupInvites, getAllFriendRequests]);
 
   useEffect(() => {
     attemptedFetchRef.current = false;
@@ -75,6 +85,7 @@ const ChatAppPage = ({ view = "chat" }: { view?: "chat" | "map" }) => {
   return (
     <SidebarProvider>
       <AppSidebar />
+      <IncomingInviteDialog />
 
       <div className="flex h-screen w-full p-2">
         {view === "map" ? (

@@ -5,6 +5,7 @@ import GroupInvite, {
   GROUP_INVITE_STATUS,
 } from "../models/GroupInvite.js";
 import Message from "../models/Message.js";
+import User from "../models/User.js";
 import { uploadImageFromBuffer } from "../middlewares/uploadMiddleware.js";
 import { io } from "../socket/index.js";
 
@@ -199,9 +200,23 @@ export const createConversation = async (req, res) => {
     }
 
     let conversation;
+    let createdDirectConversation = false;
 
     if (type === "direct") {
-      const participantId = memberIds[0];
+      const participantId = memberIds[0]?.toString?.() || "";
+
+      if (
+        !mongoose.isValidObjectId(participantId) ||
+        participantId.toString() === userId.toString()
+      ) {
+        return res.status(400).json({ message: "Người nhận không hợp lệ" });
+      }
+
+      const participantExists = await User.exists({ _id: participantId });
+
+      if (!participantExists) {
+        return res.status(404).json({ message: "Người dùng không tồn tại" });
+      }
 
       conversation = await Conversation.findOne({
         type: "direct",
@@ -216,6 +231,7 @@ export const createConversation = async (req, res) => {
         });
 
         await conversation.save();
+        createdDirectConversation = true;
       }
     }
 
@@ -248,6 +264,10 @@ export const createConversation = async (req, res) => {
       memberIds.forEach((userId) => {
         io.to(userId).emit("new-group", formatted);
       });
+    }
+
+    if (type === "direct" && createdDirectConversation) {
+      io.to(memberIds[0].toString()).emit("conversation:created", formatted);
     }
 
     return res.status(201).json({ conversation: formatted });

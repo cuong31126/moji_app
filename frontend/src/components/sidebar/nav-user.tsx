@@ -28,6 +28,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useFriendStore } from "@/stores/useFriendStore";
+import { useChatStore } from "@/stores/useChatStore";
 import type { User } from "@/types/user";
 import Logout from "../auth/Logout";
 import FriendRequestDialog from "../friendRequest/FriendRequestDialog";
@@ -127,13 +128,19 @@ export function NavUser({ user }: { user: User }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const { receivedList, getAllFriendRequests } = useFriendStore();
-  const requestCount = receivedList.length;
+  const {
+    adminGroupInvites,
+    fetchGroupInvites,
+    groupInvites,
+  } = useChatStore();
+  const requestCount =
+    receivedList.length + groupInvites.length + adminGroupInvites.length;
 
   useEffect(() => {
-    getAllFriendRequests().catch((error) => {
-      console.error("Error while loading friend request badge", error);
+    Promise.all([getAllFriendRequests(), fetchGroupInvites()]).catch((error) => {
+      console.error("Error while loading request badge", error);
     });
-  }, [getAllFriendRequests]);
+  }, [fetchGroupInvites, getAllFriendRequests]);
 
   return (
     <>
@@ -203,7 +210,7 @@ export function NavUser({ user }: { user: User }) {
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setfriendRequestOpen(true)}>
                   <Bell className="text-muted-foreground dark:group-focus:!text-accent-foreground" />
-                  Lời mời kết bạn
+                  Thông báo
                   {requestCount > 0 && (
                     <span className="ml-auto rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
                       {requestCount > 99 ? "99+" : requestCount}

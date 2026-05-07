@@ -1,16 +1,23 @@
 import { useFriendStore } from "@/stores/useFriendStore";
-import { DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
+import {
+  DialogClose,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "../ui/dialog";
 import { MessageCircleMore, Users } from "lucide-react";
 import { Card } from "../ui/card";
 import UserAvatar from "../chat/UserAvatar";
-import { useChatStore } from "@/stores/useChatStore";
+import { openDirectConversation } from "@/lib/openDirectConversation";
+import { useNavigate } from "react-router";
 
 const FriendListModal = () => {
   const { friends } = useFriendStore();
-  const { createConversation } = useChatStore();
+  const navigate = useNavigate();
 
   const handleAddConversation = async (friendId: string) => {
-    await createConversation("direct", "", [friendId]);
+    await openDirectConversation(friendId);
+    navigate("/");
   };
 
   return (
@@ -30,12 +37,12 @@ const FriendListModal = () => {
 
         <div className="beautiful-scrollbar max-h-60 space-y-2 overflow-y-auto overflow-x-hidden pr-1">
           {friends.map((friend) => (
-            <Card
-              onClick={() => handleAddConversation(friend._id)}
-              key={friend._id}
-              className="max-w-full cursor-pointer overflow-hidden p-3 transition-smooth hover:shadow-soft glass hover:bg-muted/30 group/friendCard"
-            >
-              <div className="flex min-w-0 items-center gap-3">
+            <DialogClose asChild key={friend._id}>
+              <Card
+                onClick={() => void handleAddConversation(friend._id)}
+                className="max-w-full cursor-pointer overflow-hidden p-3 transition-smooth hover:shadow-soft glass hover:bg-muted/30 group/friendCard"
+              >
+                <div className="flex min-w-0 items-center gap-3">
                 {/* avatar */}
                 <div className="relative">
                   <UserAvatar
@@ -55,7 +62,8 @@ const FriendListModal = () => {
                   </span>
                 </div>
               </div>
-            </Card>
+              </Card>
+            </DialogClose>
           ))}
 
           {friends.length === 0 && (

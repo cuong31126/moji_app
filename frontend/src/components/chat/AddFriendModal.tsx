@@ -15,6 +15,8 @@ import SearchForm from "@/components/AddFriendModal/SearchForm";
 import SendFriendRequestForm from "@/components/AddFriendModal/SendFriendRequestForm";
 import type { AddFriendFormValues } from "@/types/form";
 import UserProfileDialog from "../profile/UserProfileDialog";
+import { openDirectConversation } from "@/lib/openDirectConversation";
+import { useNavigate } from "react-router";
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Loi xay ra. Hay thu lai";
@@ -27,6 +29,7 @@ const AddFriendModal = () => {
   const [previewUser, setPreviewUser] = useState<User | null>(null);
   const [searchedUsername, setSearchedUsername] = useState("");
   const { loading, searchByUsername, searchUsers, addFriend } = useFriendStore();
+  const navigate = useNavigate();
 
   const {
     register,
@@ -129,6 +132,20 @@ const AddFriendModal = () => {
     }
   });
 
+  const handleMessage = async () => {
+    if (!searchUser) return;
+
+    try {
+      await openDirectConversation(searchUser._id);
+      handleCancel();
+      setOpen(false);
+      navigate("/");
+    } catch (error) {
+      console.error("Error while opening direct chat from add friend modal", error);
+      toast.error("KhÃ´ng má»Ÿ Ä‘Æ°á»£c cuá»™c trÃ² chuyá»‡n");
+    }
+  };
+
   return (
     <Dialog
       open={open}
@@ -174,8 +191,10 @@ const AddFriendModal = () => {
             register={register}
             loading={loading}
             searchedUsername={searchedUsername}
+            relationshipStatus={searchUser?.relationshipStatus ?? "none"}
             onSubmit={handleSend}
             onBack={() => setIsFound(null)}
+            onMessage={() => void handleMessage()}
           />
         )}
       </DialogContent>

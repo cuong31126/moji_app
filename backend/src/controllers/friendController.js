@@ -1,7 +1,18 @@
 import Friend from "../models/Friend.js";
 import User from "../models/User.js";
 import FriendRequest from "../models/FriendRequest.js";
+import Conversation from "../models/Conversation.js";
+import Message from "../models/Message.js";
 import mongoose from "mongoose";
+import { io } from "../socket/index.js";
+import {
+  conversationPopulate,
+  emitNewMessage,
+  formatConversationForClient,
+  updateConversationAfterCreateMessage,
+} from "../utils/messageHelper.js";
+
+const FRIENDSHIP_SYSTEM_MESSAGE = "Các bạn đã là bạn bè rồi";
 
 const getFriendPair = (firstUserId, secondUserId) => {
   let userA = firstUserId.toString();
@@ -23,6 +34,73 @@ const toFriendPayload = (user) => {
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
   };
+};
+
+const findDirectConversation = (firstUserId, secondUserId) =>
+  Conversation.findOne({
+    type: "direct",
+    "participants.userId": { $all: [firstUserId, secondUserId] },
+  });
+
+const createFriendshipSystemMessage = async (
+  firstUserId,
+  secondUserId,
+  senderId
+) => {
+  let conversation = await findDirectConversation(firstUserId, secondUserId);
+  let createdConversation = false;
+
+  if (!conversation) {
+    conversation = await Conversation.create({
+      type: "direct",
+      participants: [
+        { userId: firstUserId, joinedAt: new Date() },
+        { userId: secondUserId, joinedAt: new Date() },
+      ],
+      lastMessageAt: new Date(),
+      unreadCounts: new Map(),
+    });
+    createdConversation = true;
+  }
+
+  const message = await Message.create({
+    conversationId: conversation._id,
+    senderId,
+    content: FRIENDSHIP_SYSTEM_MESSAGE,
+    messageType: "system",
+  });
+
+  updateConversationAfterCreateMessage(conversation, message, senderId);
+  await conversation.save();
+  await conversation.populate(conversationPopulate);
+
+  const formattedConversation = formatConversationForClient(conversation);
+  const participantIds = [firstUserId, secondUserId].map((id) => id.toString());
+
+  participantIds.forEach((participantId) => {
+    io.to(participantId).emit(
+      createdConversation ? "conversation:created" : "conversation:updated",
+      formattedConversation
+    );
+  });
+
+  if (!createdConversation) {
+    emitNewMessage(io, conversation, message);
+  }
+
+  return formattedConversation;
+};
+
+const emitFriendRequestRefresh = (...userIds) => {
+  userIds.forEach((userId) => {
+    io.to(userId.toString()).emit("friend-request:updated");
+  });
+};
+
+const emitFriendshipCreated = (firstUserId, secondUserId, conversation) => {
+  [firstUserId, secondUserId].forEach((userId) => {
+    io.to(userId.toString()).emit("friendship:created", { conversation });
+  });
 };
 
 const makeFriends = async (firstUserId, secondUserId) => {
@@ -101,14 +179,19 @@ export const sendFriendRequest = async (req, res) => {
 
       if (isIncomingRequest) {
         await makeFriends(from, to);
+        const conversation = await createFriendshipSystemMessage(from, to, from);
 
         const newFriend = await User.findById(to)
           .select("_id username displayName avatarUrl")
           .lean();
 
+        emitFriendRequestRefresh(from, to);
+        emitFriendshipCreated(from, to, conversation);
+
         return res.status(200).json({
           message: "Chấp nhận lời mời kết bạn thành công",
           newFriend: toFriendPayload(newFriend),
+          conversation,
         });
       }
 
@@ -120,6 +203,9 @@ export const sendFriendRequest = async (req, res) => {
       to,
       message,
     });
+
+    io.to(to.toString()).emit("friend-request:created", { requestId: request._id });
+    emitFriendRequestRefresh(from);
 
     return res
       .status(201)
@@ -152,14 +238,23 @@ export const acceptFriendRequest = async (req, res) => {
     }
 
     await makeFriends(request.from, request.to);
+    const conversation = await createFriendshipSystemMessage(
+      request.from,
+      request.to,
+      userId
+    );
 
     const from = await User.findById(request.from)
       .select("_id username displayName avatarUrl")
       .lean();
 
+    emitFriendRequestRefresh(request.from, request.to);
+    emitFriendshipCreated(request.from, request.to, conversation);
+
     return res.status(200).json({
       message: "Chấp nhận lời mời kết bạn thành công",
       newFriend: toFriendPayload(from),
+      conversation,
     });
   } catch (error) {
     console.error("Lỗi khi chấp nhận lời mời kết bạn", error);
@@ -189,6 +284,7 @@ export const declineFriendRequest = async (req, res) => {
     }
 
     await FriendRequest.findByIdAndDelete(requestId);
+    emitFriendRequestRefresh(request.from, request.to);
 
     return res.sendStatus(204);
   } catch (error) {
@@ -270,6 +366,7 @@ export const withdrawFriendRequest = async (req, res) => {
     }
 
     await FriendRequest.findByIdAndDelete(requestId);
+    emitFriendRequestRefresh(request.from, request.to);
 
     return res.status(200).json({ message: "Thu hồi lời mời kết bạn thành công" });
   } catch (error) {

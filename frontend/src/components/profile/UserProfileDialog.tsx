@@ -12,8 +12,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { userService } from "@/services/userService";
+import { openDirectConversation } from "@/lib/openDirectConversation";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { useChatStore } from "@/stores/useChatStore";
 import { useFriendStore } from "@/stores/useFriendStore";
 import type { RelationshipStatus, User } from "@/types/user";
 import ProfileCard from "./ProfileCard";
@@ -164,31 +164,13 @@ const UserProfileDialog = ({
     return profileUser.relationshipStatus ?? "none";
   }, [currentUser?._id, profileUser]);
 
-  const canMessage = relationshipStatus === "friends";
+  const canMessage = relationshipStatus !== "self";
   const canSendRequest = relationshipStatus === "none";
   const canAcceptRequest =
     relationshipStatus === "request_received" && Boolean(profileUser?.friendRequestId);
 
-  const openDirectConversation = async (targetUserId: string) => {
-    const chatState = useChatStore.getState();
-    const existingConversation = chatState.conversations.find(
-      (conversation) =>
-        conversation.type === "direct" &&
-        conversation.participants.some(
-          (participant) => participant._id === targetUserId
-        )
-    );
-
-    if (existingConversation) {
-      chatState.setActiveConversation(existingConversation._id);
-
-      if (!chatState.messages[existingConversation._id]) {
-        await chatState.fetchMessages(existingConversation._id);
-      }
-    } else {
-      await chatState.createConversation("direct", "", [targetUserId]);
-    }
-
+  const openProfileDirectConversation = async (targetUserId: string) => {
+    await openDirectConversation(targetUserId);
     onOpenChange(false);
     navigate("/");
   };
@@ -205,7 +187,7 @@ const UserProfileDialog = ({
         await acceptRequest(profileUser.friendRequestId);
         setProfileUser({ ...profileUser, relationshipStatus: "friends" });
         toast.success("Đã chấp nhận lời mời kết bạn");
-        await openDirectConversation(profileUser._id);
+        await openProfileDirectConversation(profileUser._id);
         return;
       }
 
@@ -230,7 +212,7 @@ const UserProfileDialog = ({
     try {
       setActionLoading(true);
 
-      await openDirectConversation(profileUser._id);
+      await openProfileDirectConversation(profileUser._id);
     } catch (error) {
       console.error(error);
       toast.error("Không mở được cuộc trò chuyện");

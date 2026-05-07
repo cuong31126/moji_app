@@ -7,7 +7,10 @@ export const checkFriendship = async (req, res, next) => {
   try {
     const me = req.user._id.toString();
     const recipientId = req.body?.recipientId ?? null;
-    const memberIds = req.body?.memberIds ?? [];
+    const memberIds = Array.isArray(req.body?.memberIds)
+      ? req.body.memberIds
+      : [];
+    const type = req.body?.type;
 
     if (!recipientId && memberIds.length === 0) {
       return res
@@ -15,15 +18,7 @@ export const checkFriendship = async (req, res, next) => {
         .json({ message: "Cần cung cấp recipientId hoặc memberIds" });
     }
 
-    if (recipientId) {
-      const [userA, userB] = pair(me, recipientId);
-
-      const isFriend = await Friend.findOne({ userA, userB });
-
-      if (!isFriend) {
-        return res.status(403).json({ message: "Bạn chưa kết bạn với người này" });
-      }
-
+    if (recipientId || type === "direct") {
       return next();
     }
 
@@ -37,9 +32,10 @@ export const checkFriendship = async (req, res, next) => {
     const notFriends = results.filter(Boolean);
 
     if (notFriends.length > 0) {
-      return res
-        .status(403)
-        .json({ message: "Bạn chỉ có thể thêm bạn bè vào nhóm.", notFriends });
+      return res.status(403).json({
+        message: "Bạn chỉ có thể thêm bạn bè vào nhóm.",
+        notFriends,
+      });
     }
 
     next();

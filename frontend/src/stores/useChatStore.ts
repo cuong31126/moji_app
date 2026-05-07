@@ -374,9 +374,16 @@ export const useChatStore = create<ChatState>()(
       },
       updateConversation: (conversation) => {
         set((state) => ({
-          conversations: state.conversations.map((c) =>
-            c._id === conversation._id ? { ...c, ...conversation } : c
-          ),
+          conversations: state.conversations.some((c) => c._id === conversation._id)
+            ? state.conversations.map((c) =>
+                c._id === conversation._id ? { ...c, ...conversation } : c
+              )
+            : conversation.participants
+            ? [
+                conversation as ChatState["conversations"][number],
+                ...state.conversations,
+              ]
+            : state.conversations,
         }));
       },
       removeConversation: (conversationId) => {
@@ -553,7 +560,11 @@ export const useChatStore = create<ChatState>()(
 
           return {
             conversations: exists
-              ? state.conversations
+              ? state.conversations.map((conversation) =>
+                  conversation._id === convo._id
+                    ? { ...conversation, ...convo }
+                    : conversation
+                )
               : [convo, ...state.conversations],
             activeConversationId: convo._id,
           };
@@ -571,8 +582,10 @@ export const useChatStore = create<ChatState>()(
           get().addConvo(conversation);
 
           getSocketState()?.socket?.emit("join-conversation", conversation._id);
+          return conversation;
         } catch (error) {
           console.error("Lỗi xảy ra khi gọi createConversation trong store", error);
+          throw error;
         } finally {
           set({ loading: false });
         }
