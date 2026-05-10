@@ -34,6 +34,11 @@ export const reportService = {
     return res.data.report;
   },
 
+  async deleteReport(id: string) {
+    const res = await api.delete<{ reportId: string }>(`/reports/${id}`);
+    return res.data.reportId;
+  },
+
   async createReport(input: CreateReportInput, images: File[] = []) {
     const formData = new FormData();
     formData.append("description", input.description);

@@ -14,6 +14,7 @@ import {
   emitNewMessage,
   updateConversationAfterCreateMessage,
 } from "../utils/messageHelper.js";
+import { isSystemAdminUser } from "../utils/authHelper.js";
 import { io } from "../socket/index.js";
 
 const REQUIRED_VERIFICATIONS = 2;
@@ -371,6 +372,47 @@ export const getReportById = async (req, res) => {
   } catch (error) {
     console.error("Lỗi khi lấy chi tiết điểm rác", error);
     return res.status(500).json({ message: "Lỗi hệ thống" });
+  }
+};
+
+export const deleteReport = async (req, res) => {
+  try {
+    if (!isSystemAdminUser(req.user)) {
+      return res.status(403).json({ message: "Chi admin moi duoc xoa diem rac" });
+    }
+
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Diem rac khong hop le" });
+    }
+
+    const report = await TrashReport.findById(req.params.id).lean();
+
+    if (!report) {
+      return res.status(404).json({ message: "Khong tim thay diem rac" });
+    }
+
+    await Promise.all([
+      TrashComment.deleteMany({ reportId: report._id }),
+      GroupInvite.deleteMany({ reportId: report._id }),
+      Message.updateMany(
+        { trashReport: report._id },
+        {
+          $set: {
+            messageType: "system",
+            content: "Điểm rác này đã bị quản trị viên xóa.",
+            trashReport: null,
+          },
+        }
+      ),
+      TrashReport.deleteOne({ _id: report._id }),
+    ]);
+
+    io.emit("trash-report-deleted", { reportId: report._id.toString() });
+
+    return res.status(200).json({ reportId: report._id });
+  } catch (error) {
+    console.error("Loi khi xoa diem rac", error);
+    return res.status(500).json({ message: "Loi he thong" });
   }
 };
 

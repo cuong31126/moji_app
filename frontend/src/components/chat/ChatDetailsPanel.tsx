@@ -210,6 +210,8 @@ const ChatDetailsContent = ({
     chat.participants.find((participant) => participant._id === user?._id)
       ?.role || "member";
   const isAdmin = currentUserRole === "admin";
+  const isSystemAdmin = user?.role === "admin";
+  const canDeleteGroup = isAdmin || isSystemAdmin;
   const memberIds = useMemo(
     () => new Set(chat.participants.map((participant) => participant._id)),
     [chat.participants]
@@ -957,7 +959,7 @@ const ChatDetailsContent = ({
                 <LogOut className="size-4" />
                 Rời nhóm
               </ActionButton>
-              {isAdmin && (
+              {canDeleteGroup && (
                 <ActionButton
                   danger
                   disabled={loading}

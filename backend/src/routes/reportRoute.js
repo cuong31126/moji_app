@@ -4,6 +4,7 @@ import {
   cleanupReport,
   confirmCleanReport,
   createReport,
+  deleteReport,
   getReportById,
   getReportComments,
   getReports,
@@ -19,6 +20,7 @@ const router = express.Router();
 router.get("/", getReports);
 router.post("/", upload.array("images", 5), createReport);
 router.get("/:id", getReportById);
+router.delete("/:id", deleteReport);
 router.post("/:id/verify", verifyReport);
 router.post("/:id/cleanup", upload.array("images", 5), cleanupReport);
 router.post("/:id/confirm-clean", confirmCleanReport);

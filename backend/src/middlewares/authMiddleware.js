@@ -2,6 +2,7 @@
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import { getAccessTokenSecret } from "../config/env.js";
+import { toSafeUser } from "../utils/authHelper.js";
 
 // authorization - xác minh user là ai
 export const protectedRoute = (req, res, next) => {
@@ -43,7 +44,7 @@ export const protectedRoute = (req, res, next) => {
                 }
 
                 // trả user về trong req
-                req.user = user;
+                req.user = toSafeUser(user);
                 next();
             },
         );

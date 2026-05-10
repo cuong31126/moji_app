@@ -9,7 +9,30 @@ import {
 export const ACCESS_TOKEN_TTL = "30m";
 export const REFRESH_TOKEN_TTL = 14 * 24 * 60 * 60 * 1000;
 
+const DEFAULT_ADMIN_EMAILS = ["lequoccuong31126@gmail.com"];
+
 const isProduction = () => process.env.NODE_ENV === "production";
+
+const getAdminEmails = () => {
+  const configuredEmails = (process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+
+  return new Set([...DEFAULT_ADMIN_EMAILS, ...configuredEmails]);
+};
+
+export const isSystemAdminUser = (user) => {
+  const email = user?.email?.trim?.().toLowerCase();
+  const hasGoogleProvider = user?.authProviders?.some?.(
+    (item) => item.provider === "google"
+  );
+
+  return (
+    user?.role === "admin" ||
+    Boolean(email && hasGoogleProvider && getAdminEmails().has(email))
+  );
+};
 
 export const getRefreshCookieOptions = () => ({
   httpOnly: true,
@@ -63,6 +86,7 @@ export const verifyRefreshTokenIfConfigured = (refreshToken) => {
 export const toSafeUser = (user) => {
   const source = user.toObject ? user.toObject() : user;
   const { hashedPassword, ...safeUser } = source;
+  safeUser.role = isSystemAdminUser(safeUser) ? "admin" : safeUser.role || "user";
   return safeUser;
 };
 

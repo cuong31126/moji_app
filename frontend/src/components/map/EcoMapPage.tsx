@@ -389,6 +389,7 @@ const EcoMapPage = () => {
   const searchCacheRef = useRef<Record<string, SearchResult[]>>({});
   const searchAbortRef = useRef<AbortController | null>(null);
   const reportFetchCenter = reportQueryCenter;
+  const isSystemAdmin = user?.role === "admin";
 
   const setReportActionLoading = useCallback(
     (reportId: string, isLoading: boolean) => {
@@ -427,6 +428,16 @@ const EcoMapPage = () => {
       prev?._id === report._id ? report : prev
     );
   }, []);
+
+  const removeReport = useCallback((reportId: string) => {
+    setReports((prev) => prev.filter((report) => report._id !== reportId));
+
+    if (selectedReport?._id === reportId) {
+      setSelectedReport(null);
+      setDetailOpen(false);
+      setComments([]);
+    }
+  }, [selectedReport?._id]);
 
   useEffect(() => {
     if (!navigator.geolocation) {
@@ -544,18 +555,24 @@ const EcoMapPage = () => {
       }
     };
 
+    const handleDeletedReport = ({ reportId }: { reportId: string }) => {
+      removeReport(reportId);
+    };
+
     socket.on("new-trash-report", handleNewReport);
     socket.on("trash-report-updated", handleUpdatedReport);
     socket.on("trash-report-cleaned", handleUpdatedReport);
     socket.on("trash-report-commented", handleCommented);
+    socket.on("trash-report-deleted", handleDeletedReport);
 
     return () => {
       socket.off("new-trash-report", handleNewReport);
       socket.off("trash-report-updated", handleUpdatedReport);
       socket.off("trash-report-cleaned", handleUpdatedReport);
       socket.off("trash-report-commented", handleCommented);
+      socket.off("trash-report-deleted", handleDeletedReport);
     };
-  }, [selectedReport?._id, socket, syncReport, upsertReport]);
+  }, [removeReport, selectedReport?._id, socket, syncReport, upsertReport]);
 
   useEffect(() => {
     if (!selectedReport || !detailOpen) {
@@ -885,6 +902,33 @@ const EcoMapPage = () => {
       toast.error("Không tạo được báo cáo");
     } finally {
       setSubmittingReport(false);
+    }
+  };
+
+  const handleDeleteReport = async () => {
+    if (!selectedReport || !isSystemAdmin) {
+      return;
+    }
+
+    const reportId = selectedReport._id;
+    const confirmed = window.confirm(
+      "Xóa ghim rác này khỏi bản đồ? Thao tác này không thể hoàn tác."
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setReportActionLoading(reportId, true);
+      await reportService.deleteReport(reportId);
+      removeReport(reportId);
+      toast.success("Đã xóa ghim rác");
+    } catch (error) {
+      console.error(error);
+      toast.error("Không xóa được ghim rác");
+    } finally {
+      setReportActionLoading(reportId, false);
     }
   };
 
@@ -1684,6 +1728,21 @@ const EcoMapPage = () => {
                       Share
                     </Button>
                   </div>
+                  {isSystemAdmin && (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={handleDeleteReport}
+                      disabled={selectedReportActionLoading}
+                    >
+                      {selectedReportActionLoading ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="size-4" />
+                      )}
+                      Xóa ghim
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     variant="outline"

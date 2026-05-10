@@ -8,6 +8,7 @@ import Message from "../models/Message.js";
 import User from "../models/User.js";
 import { uploadImageFromBuffer } from "../middlewares/uploadMiddleware.js";
 import { io } from "../socket/index.js";
+import { isSystemAdminUser } from "../utils/authHelper.js";
 
 const conversationPopulate = [
   { path: "participants.userId", select: "displayName avatarUrl username" },
@@ -879,7 +880,7 @@ export const deleteGroupConversation = async (req, res) => {
 
     await ensureAtLeastOneAdmin(conversation, conversation.group?.createdBy);
 
-    if (!isGroupAdmin(conversation, userId)) {
+    if (!isGroupAdmin(conversation, userId) && !isSystemAdminUser(req.user)) {
       return res
         .status(403)
         .json({ message: "Chỉ quản trị viên mới được xóa nhóm" });
