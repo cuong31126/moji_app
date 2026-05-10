@@ -273,19 +273,33 @@ const MapFlyTo = ({ target }: { target: FlyTarget | null }) => {
 
 const MapCenterWatcher = ({
   enabled,
+  live,
   onCenterChange,
+  onIdleCenterChange,
 }: {
   enabled: boolean;
+  live?: boolean;
   onCenterChange: (center: LatLngPoint) => void;
+  onIdleCenterChange?: (center: LatLngPoint) => void;
 }) => {
   const map = useMapEvents({
     move() {
-      if (!enabled) {
+      if (!enabled || !live) {
         return;
       }
 
       const center = map.getCenter();
       onCenterChange({ lat: center.lat, lng: center.lng });
+    },
+    moveend() {
+      if (!enabled) {
+        return;
+      }
+
+      const center = map.getCenter();
+      const nextCenter = { lat: center.lat, lng: center.lng };
+      onCenterChange(nextCenter);
+      onIdleCenterChange?.(nextCenter);
     },
   });
 
@@ -295,8 +309,10 @@ const MapCenterWatcher = ({
     }
 
     const center = map.getCenter();
-    onCenterChange({ lat: center.lat, lng: center.lng });
-  }, [enabled, map, onCenterChange]);
+    const nextCenter = { lat: center.lat, lng: center.lng };
+    onCenterChange(nextCenter);
+    onIdleCenterChange?.(nextCenter);
+  }, [enabled, map, onCenterChange, onIdleCenterChange]);
 
   return null;
 };
@@ -320,6 +336,8 @@ const EcoMapPage = () => {
   const [mapMode, setMapMode] = useState<MapMode>("view");
   const [mapStyle, setMapStyle] = useState<MapStyle>("street");
   const [currentCenter, setCurrentCenter] = useState<LatLngPoint>(DEFAULT_CENTER);
+  const [reportQueryCenter, setReportQueryCenter] =
+    useState<LatLngPoint>(DEFAULT_CENTER);
   const [draftLocation, setDraftLocation] = useState<LatLngPoint | null>(null);
   const [flyTarget, setFlyTarget] = useState<FlyTarget | null>({
     ...DEFAULT_CENTER,
@@ -370,7 +388,7 @@ const EcoMapPage = () => {
   const handledReportIdRef = useRef<string | null>(null);
   const searchCacheRef = useRef<Record<string, SearchResult[]>>({});
   const searchAbortRef = useRef<AbortController | null>(null);
-  const reportFetchCenter = userLocation ?? DEFAULT_CENTER;
+  const reportFetchCenter = reportQueryCenter;
 
   const setReportActionLoading = useCallback(
     (reportId: string, isLoading: boolean) => {
@@ -395,37 +413,20 @@ const EcoMapPage = () => {
       return;
     }
 
-    const reportWithDistance =
-      userLocation && report.location
-        ? {
-            ...report,
-            distanceMeters: getDistanceMeters(userLocation, {
-              lat: report.location.lat,
-              lng: report.location.lng,
-            }),
-          }
-        : report;
-
     setReports((prev) => {
-      const matchesFilter =
-        activeFilter === "ALL" || reportWithDistance.status === activeFilter;
-      const exists = prev.some((item) => item._id === reportWithDistance._id);
-
-      if (!matchesFilter) {
-        return prev.filter((item) => item._id !== reportWithDistance._id);
-      }
+      const exists = prev.some((item) => item._id === report._id);
 
       return exists
         ? prev.map((item) =>
-            item._id === reportWithDistance._id ? reportWithDistance : item
+            item._id === report._id ? report : item
           )
-        : [reportWithDistance, ...prev];
+        : [report, ...prev];
     });
 
     setSelectedReport((prev) =>
-      prev?._id === reportWithDistance._id ? reportWithDistance : prev
+      prev?._id === report._id ? report : prev
     );
-  }, [activeFilter, userLocation]);
+  }, []);
 
   useEffect(() => {
     if (!navigator.geolocation) {
@@ -448,6 +449,7 @@ const EcoMapPage = () => {
 
         setUserLocation(nextLocation);
         setCurrentCenter(nextLocation);
+        setReportQueryCenter(nextLocation);
         setFlyTarget({ ...nextLocation, zoom: 15 });
         setInitialLocationResolved(true);
       },
@@ -639,33 +641,72 @@ const EcoMapPage = () => {
   ]);
 
   const visibleReports = useMemo(() => {
-    return reports
+    const selectedId = selectedReport?._id;
+    const reportById = new Map<string, TrashReport>();
+
+    reports
+      .filter(shouldShowReportOnMap)
+      .forEach((report) => reportById.set(report._id, report));
+
+    if (selectedReport && shouldShowReportOnMap(selectedReport)) {
+      reportById.set(selectedReport._id, selectedReport);
+    }
+
+    return Array.from(reportById.values())
       .map((report) =>
-        report.distanceMeters !== undefined
-          ? report
-          : {
-              ...report,
-              distanceMeters: getDistanceMeters(reportFetchCenter, {
-                lat: report.location.lat,
-                lng: report.location.lng,
-              }),
-            }
+        ({
+          ...report,
+          distanceMeters: getDistanceMeters(reportFetchCenter, {
+            lat: report.location.lat,
+            lng: report.location.lng,
+          }),
+        })
       )
+      .filter(
+        (report) => {
+          const isSelected = report._id === selectedId;
+          const matchesFilter =
+            activeFilter === "ALL" || report.status === activeFilter;
+          const isNearVisibleArea =
+            (report.distanceMeters ?? 0) <= REPORT_MAX_DISTANCE_METERS;
+
+          return isSelected || (matchesFilter && isNearVisibleArea);
+        }
+      )
+      .sort((a, b) => {
+        if (a._id === selectedId) {
+          return -1;
+        }
+
+        if (b._id === selectedId) {
+          return 1;
+        }
+
+        return (a.distanceMeters ?? 0) - (b.distanceMeters ?? 0);
+      })
+      .slice(0, REPORT_LIMIT);
+  }, [activeFilter, reportFetchCenter, reports, selectedReport]);
+
+  const nearbyReports = useMemo(() => {
+    const nearbyOrigin = userLocation ?? reportFetchCenter;
+
+    return reports
+      .filter(shouldShowReportOnMap)
+      .map((report) => ({
+        ...report,
+        distanceMeters: getDistanceMeters(nearbyOrigin, {
+          lat: report.location.lat,
+          lng: report.location.lng,
+        }),
+      }))
       .filter(
         (report) =>
           (report.distanceMeters ?? 0) <= REPORT_MAX_DISTANCE_METERS &&
           (activeFilter === "ALL" || report.status === activeFilter)
       )
       .sort((a, b) => (a.distanceMeters ?? 0) - (b.distanceMeters ?? 0))
-      .slice(0, REPORT_LIMIT);
-  }, [activeFilter, reportFetchCenter, reports]);
-
-  const nearbyReports = useMemo(() => {
-    return visibleReports
-      .filter((report) => report.distanceMeters !== undefined)
-      .sort((a, b) => (a.distanceMeters ?? 0) - (b.distanceMeters ?? 0))
       .slice(0, 4);
-  }, [visibleReports]);
+  }, [activeFilter, reportFetchCenter, reports, userLocation]);
 
   const handleSelectReport = (report: TrashReport) => {
     setSelectedReport(report);
@@ -686,6 +727,8 @@ const EcoMapPage = () => {
           lng: position.coords.longitude,
         };
         setUserLocation(nextLocation);
+        setCurrentCenter(nextLocation);
+        setReportQueryCenter(nextLocation);
         setFlyTarget({ ...nextLocation, zoom: 16 });
         setLocating(false);
       },
@@ -776,6 +819,8 @@ const EcoMapPage = () => {
 
     setSearchQuery(result.display_name.split(",")[0]);
     setSearchResults([]);
+    setCurrentCenter({ lat, lng });
+    setReportQueryCenter({ lat, lng });
     setFlyTarget({ lat, lng, zoom: 15 });
   };
 
@@ -1168,8 +1213,10 @@ const EcoMapPage = () => {
         />
         <MapFlyTo target={flyTarget} />
         <MapCenterWatcher
-          enabled={mapMode === "reporting"}
+          enabled
+          live={mapMode === "reporting"}
           onCenterChange={setCurrentCenter}
+          onIdleCenterChange={setReportQueryCenter}
         />
 
         {visibleReports.map((report) => (
